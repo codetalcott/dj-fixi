@@ -1,0 +1,26 @@
+{% load fixi_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if object %}Edit{% else %}Add{% endif %} Product</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    {% fixi_cdn %}
+</head>
+<body>
+    <h1>{% if object %}Edit{% else %}Add{% endif %} Product</h1>
+
+    <form method="post" {% fx_attrs target="#form-container" %}>
+        {% fx_csrf_token %}
+
+        <div id="form-container">
+            {{ form.as_p }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">Save</button>
+            <a href="{% url 'product_list' %}" class="button">Cancel</a>
+        </div>
+    </form>
+</body>
+</html>

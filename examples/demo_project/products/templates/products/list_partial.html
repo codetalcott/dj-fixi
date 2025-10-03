@@ -1,0 +1,57 @@
+{% load fixi_tags %}
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Stock</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for product in products %}
+        <tr id="product-{{ product.id }}">
+            <td>{{ product.name }}</td>
+            <td>${{ product.price }}</td>
+            <td>{{ product.stock }}</td>
+            <td>{% if product.is_active %}Active{% else %}Inactive{% endif %}</td>
+            <td>
+                <button {% fx_attrs action=product.get_absolute_url method="GET" target="#product-container" %}>
+                    Edit
+                </button>
+                <button
+                    {% fx_attrs action=product.get_absolute_url method="DELETE" target="#product-"|add:product.id swap="outerHTML" %}
+                    onclick="return confirm('Delete {{ product.name }}?')">
+                    Delete
+                </button>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5">No products found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if is_paginated %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&{{ query_string }}"
+           {% fx_attrs action="." target="#product-container" %}>
+            Previous
+        </a>
+    {% endif %}
+
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&{{ query_string }}"
+           {% fx_attrs action="." target="#product-container" %}>
+            Next
+        </a>
+    {% endif %}
+</div>
+{% endif %}

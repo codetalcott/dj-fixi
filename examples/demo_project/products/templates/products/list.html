@@ -1,0 +1,35 @@
+{% load fixi_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - dj-fixi Demo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    {% fixi_cdn %}
+</head>
+<body>
+    <header>
+        <h1>dj-fixi Demo - Product List</h1>
+        <p>This page demonstrates Fixi.js integration with Django</p>
+    </header>
+
+    <main>
+        <div class="controls">
+            <form {% fx_attrs action="." method="GET" target="#product-container" %}>
+                <input type="search" name="q" placeholder="Search products..." value="{{ request.GET.q }}">
+                <button type="submit">Search</button>
+            </form>
+            <a href="{% url 'product_create' %}" class="button">Add Product</a>
+        </div>
+
+        <div id="product-container">
+            {% include "products/list_partial.html" %}
+        </div>
+    </main>
+
+    <footer>
+        <p>Powered by dj-fixi | {% if is_fx %}Fixi Request ✓{% else %}Full Page{% endif %}</p>
+    </footer>
+</body>
+</html>

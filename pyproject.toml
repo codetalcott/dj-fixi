@@ -1,0 +1,29 @@
+[project]
+name = "dj-fixi"
+version = "0.1.0"
+description = "Django integration for Fixi.js - server-side rendering with hypermedia"
+authors = [{name = "William Talcott"}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "django>=4.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1.0",
+    "pytest>=7.0",
+    "pytest-django>=4.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
