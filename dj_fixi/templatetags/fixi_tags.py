@@ -74,32 +74,6 @@ def fx_csrf_token(context):
     return ""
 
 
-@register.inclusion_tag("fixi/table.html")
-def render_fx_table(renderer):
-    """
-    Render a CRUD table from a ModelTableRenderer instance.
-
-    Usage:
-        {% load fixi_tags %}
-        {% render_fx_table user_table %}
-
-    Args:
-        renderer: ModelTableRenderer instance
-    """
-    return {"renderer": renderer}
-
-
-@register.filter
-def get_attr(obj, attr_name):
-    """
-    Get attribute value, handling None gracefully.
-
-    Usage:
-        {{ object|get_attr:"field_name" }}
-    """
-    return getattr(obj, attr_name, None)
-
-
 @register.simple_tag
 def fixi_cdn(version="1.0.0"):
     """
@@ -114,20 +88,3 @@ def fixi_cdn(version="1.0.0"):
     """
     # Note: Update this URL when fixi.js gets published to a CDN
     return mark_safe(f'<script src="https://unpkg.com/fixi@{version}/fixi.js"></script>')
-
-
-@register.simple_tag
-def fx_indicator(selector="#fx-indicator", class_name="fx-loading"):
-    """
-    Create a global Fixi loading indicator.
-
-    Usage:
-        {% fx_indicator %}
-        {% fx_indicator selector="#my-spinner" class_name="loading" %}
-
-    The element will have the specified class added during Fixi requests.
-    """
-    return mark_safe(
-        f'<div id="{selector.lstrip("#")}" class="{class_name}" style="display: none;">'
-        f"Loading...</div>"
-    )

@@ -16,7 +16,7 @@ This project was created by adapting code from:
 
 1. **Middleware** ([dj_fixi/middleware.py](dj_fixi/middleware.py))
    - Detects `FX-Request: true` header
-   - Sets `request.is_fx` and `request.fx_info` attributes
+   - Sets `request.is_fx`, `request.fx_target`, `request.fx_swap`, `request.fx_trigger` attributes
 
 2. **Views** ([dj_fixi/views.py](dj_fixi/views.py))
    - `FxView`: Base view with automatic template selection
@@ -25,22 +25,14 @@ This project was created by adapting code from:
 3. **Mixins** ([dj_fixi/mixins.py](dj_fixi/mixins.py))
    - `FxResponseMixin`: Fragment template handling, form validation
    - `ContextPersistenceMixin`: URL state preservation
-   - `BulkActionMixin`: Bulk operations on querysets
-   - `ReversibleDeleteMixin`: Soft delete with undo
    - `OptimizedQueryMixin`: Query optimization
 
-4. **Renderers** ([dj_fixi/renderers.py](dj_fixi/renderers.py))
-   - `ModelTableRenderer`: Field-type aware CRUD table rendering
-   - Automatic widget selection based on Django field types
-   - Generates Fixi attributes (not HTMX)
-
-5. **Template Tags** ([dj_fixi/templatetags/fixi_tags.py](dj_fixi/templatetags/fixi_tags.py))
+4. **Template Tags** ([dj_fixi/templatetags/fixi_tags.py](dj_fixi/templatetags/fixi_tags.py))
    - `{% fx_attrs %}`: Generate Fixi attributes
    - `{% fx_csrf_token %}`: CSRF tokens
-   - `{% render_fx_table %}`: Render CRUD tables
    - `{% fixi_cdn %}`: Include Fixi.js
 
-6. **Shortcuts** ([dj_fixi/shortcuts.py](dj_fixi/shortcuts.py))
+5. **Shortcuts** ([dj_fixi/shortcuts.py](dj_fixi/shortcuts.py))
    - `render_fx()`: Automatic template selection for FBVs
 
 ## Fixi.js vs HTMX
@@ -88,7 +80,18 @@ If adapting HTMX code to Fixi:
    if request.is_fx:
    ```
 
-2. Change attributes in templates:
+2. Change headers:
+   ```python
+   # Before (HTMX)
+   target = request.htmx.target
+
+   # After (Fixi)
+   target = request.fx_target
+   swap = request.fx_swap
+   trigger = request.fx_trigger
+   ```
+
+3. Change attributes in templates:
    ```django
    {# Before (HTMX) #}
    <button hx-get="/api/data" hx-target="#result">Load</button>
@@ -97,7 +100,7 @@ If adapting HTMX code to Fixi:
    <button {% fx_attrs action="/api/data" target="#result" %}>Load</button>
    ```
 
-3. Change headers in responses:
+4. Change headers in responses:
    ```python
    # Before (HTMX)
    response['HX-Trigger'] = 'myEvent'

@@ -1,18 +1,15 @@
 """
 Django CBV mixins for Fixi.js integration.
 
-Adapted from python-modules/crud/core_mixins.py
+Simplified to include only essential, non-opinionated mixins.
 """
 
 import logging
 from typing import Any, Dict, List, Optional, Type
 from urllib.parse import urlencode
 
-from django.contrib import messages
-from django.core.cache import cache
 from django.db import models
-from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.utils import timezone
+from django.http import HttpResponse
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +90,6 @@ class ContextPersistenceMixin:
 class FxResponseMixin:
     """
     Handles Fixi requests with appropriate partial responses.
-
-    Adapted from HTMXResponseMixin - replaces HTMX-specific logic with Fixi.
 
     Input Contract:
         - request.is_fx attribute available (via FxMiddleware)
@@ -187,224 +182,6 @@ class FxResponseMixin:
         else:
             # Simple event trigger
             response["FX-Trigger"] = event_name
-
-
-class BulkActionMixin:
-    """
-    Enables bulk operations on multiple selected objects.
-
-    Works with both Fixi and regular requests.
-
-    Input Contract:
-        - POST request with '_bulk_action' and '_selected[]' parameters
-        - bulk_actions list defined on view
-
-    Output Contract:
-        - Executes bulk operation on selected queryset
-        - Returns updated list view or JSON response
-    """
-
-    bulk_actions: List[str] = []
-    bulk_action_permission_required: bool = True
-
-    def post(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        """Intercept POST requests for bulk actions."""
-        if "_bulk_action" in request.POST:
-            return self.handle_bulk_action(request)
-
-        return super().post(request, *args, **kwargs)
-
-    def handle_bulk_action(self, request: HttpRequest) -> HttpResponse:
-        """Process bulk action on selected items."""
-        action_name = request.POST.get("_bulk_action", "")
-        selected_ids = request.POST.getlist("_selected[]") or request.POST.getlist("_selected")
-
-        # Validate inputs
-        if not action_name:
-            return self.bulk_action_error(request, "No action specified")
-
-        if not selected_ids:
-            return self.bulk_action_error(request, "No items selected")
-
-        if action_name not in self.bulk_actions:
-            return self.bulk_action_error(request, f"Invalid action: {action_name}")
-
-        # Check permissions
-        if self.bulk_action_permission_required:
-            permission = f"{self.model._meta.app_label}.{action_name}_{self.model._meta.model_name}"
-            if not request.user.has_perm(permission):
-                return self.bulk_action_error(request, "Permission denied")
-
-        # Get queryset
-        try:
-            queryset = self.get_queryset().filter(pk__in=selected_ids)
-        except (ValueError, TypeError):
-            return self.bulk_action_error(request, "Invalid selection")
-
-        if not queryset.exists():
-            return self.bulk_action_error(request, "No valid items found")
-
-        # Execute action
-        handler = getattr(self, f"bulk_{action_name}", None)
-        if not handler:
-            return self.bulk_action_error(request, f"Handler not found: bulk_{action_name}")
-
-        try:
-            result = handler(request, queryset)
-
-            # Return appropriate response for Fixi requests
-            if getattr(request, "is_fx", False):
-                context = self.get_context_data()
-                response = self.render_to_response(context)
-                # Trigger bulk action complete event
-                if hasattr(self, "_trigger_fx_event"):
-                    self._trigger_fx_event(
-                        response,
-                        "bulkActionComplete",
-                        {"action": action_name, "count": queryset.count()},
-                    )
-                return response
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Bulk action failed: {e}", exc_info=True)
-            return self.bulk_action_error(request, "Operation failed")
-
-    def bulk_action_error(self, request: HttpRequest, message: str) -> HttpResponse:
-        """Handle bulk action errors."""
-        messages.error(request, message)
-
-        if getattr(request, "is_fx", False):
-            return JsonResponse({"error": message}, status=400)
-
-        return self.get(request)
-
-    def bulk_delete(self, request: HttpRequest, queryset: models.QuerySet) -> HttpResponse:
-        """Default bulk delete implementation."""
-        count = queryset.count()
-        queryset.delete()
-        messages.success(request, f"Deleted {count} {self.model._meta.verbose_name_plural}")
-        return self.get(request)
-
-
-class ReversibleDeleteMixin:
-    """
-    Implements soft delete with undo functionality.
-
-    Adapted from original to work with Fixi custom events instead of HTMX.
-
-    Input Contract:
-        - Model has a datetime field for soft delete (default: 'deleted_at')
-        - Cache backend is configured
-
-    Output Contract:
-        - Soft deletes objects instead of hard delete
-        - Provides undo capability within timeout window
-    """
-
-    soft_delete_field: str = "deleted_at"
-    undo_timeout: int = 10  # seconds
-    enable_soft_delete: bool = True
-
-    def delete(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        """Override delete to implement soft delete with undo."""
-        if not self.enable_soft_delete:
-            return super().delete(request, *args, **kwargs)
-
-        self.object = self.get_object()
-        success_url = self.get_success_url()
-
-        # Check if model has soft delete field
-        if not hasattr(self.object, self.soft_delete_field):
-            logger.warning(
-                f"Model {self.model} missing soft delete field: {self.soft_delete_field}"
-            )
-            return super().delete(request, *args, **kwargs)
-
-        # Perform soft delete
-        setattr(self.object, self.soft_delete_field, timezone.now())
-        self.object.save(update_fields=[self.soft_delete_field])
-
-        # Cache for undo
-        cache_key = f"undo_delete_{self.model._meta.label}_{self.object.pk}"
-        cache.set(
-            cache_key, {"pk": self.object.pk, "deleted_at": timezone.now().isoformat()}, timeout=self.undo_timeout
-        )
-
-        # Generate response
-        if getattr(request, "is_fx", False):
-            response = JsonResponse(
-                {
-                    "success": True,
-                    "message": f"{self.object} deleted",
-                    "undo_url": self.get_undo_url(self.object.pk),
-                    "undo_timeout": self.undo_timeout,
-                }
-            )
-
-            # Trigger undo toast event
-            if hasattr(self, "_trigger_fx_event"):
-                self._trigger_fx_event(
-                    response,
-                    "showUndoToast",
-                    {
-                        "id": str(self.object.pk),
-                        "timeout": self.undo_timeout,
-                        "undo_url": self.get_undo_url(self.object.pk),
-                    },
-                )
-
-            return response
-
-        messages.success(
-            request,
-            f'{self.object} deleted. <a href="{self.get_undo_url(self.object.pk)}">Undo</a>',
-            extra_tags="safe",
-        )
-
-        return (
-            HttpResponse(status=204)
-            if getattr(request, "is_fx", False)
-            else super().delete(request, *args, **kwargs)
-        )
-
-    def undo_delete(self, request: HttpRequest, pk: Any) -> HttpResponse:
-        """Restore soft-deleted object."""
-        cache_key = f"undo_delete_{self.model._meta.label}_{pk}"
-        cached_data = cache.get(cache_key)
-
-        if not cached_data:
-            return JsonResponse({"error": "Undo period expired"}, status=400)
-
-        try:
-            obj = self.model.objects.filter(pk=pk).first()
-
-            if obj and getattr(obj, self.soft_delete_field):
-                setattr(obj, self.soft_delete_field, None)
-                obj.save(update_fields=[self.soft_delete_field])
-
-                # Clear cache
-                cache.delete(cache_key)
-
-                if getattr(request, "is_fx", False):
-                    return JsonResponse({"success": True, "message": f"{obj} restored"})
-
-                messages.success(request, f"{obj} restored")
-                return self.get(request)
-
-        except Exception as e:
-            logger.error(f"Undo delete failed: {e}", exc_info=True)
-
-        return JsonResponse({"error": "Unable to restore"}, status=400)
-
-    def get_undo_url(self, pk: Any) -> str:
-        """Generate URL for undo action."""
-        from django.urls import reverse
-
-        return reverse(
-            f"{self.model._meta.app_label}:{self.model._meta.model_name}_undo", args=[pk]
-        )
 
 
 class OptimizedQueryMixin:

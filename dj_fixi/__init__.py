@@ -6,11 +6,9 @@ __version__ = "0.1.0"
 
 from .middleware import FxMiddleware
 from .mixins import (
-    BulkActionMixin,
     ContextPersistenceMixin,
     FxResponseMixin,
     OptimizedQueryMixin,
-    ReversibleDeleteMixin,
 )
 from .shortcuts import render_fx
 from .views import FxView
@@ -20,8 +18,6 @@ __all__ = [
     "FxView",
     "FxResponseMixin",
     "ContextPersistenceMixin",
-    "BulkActionMixin",
-    "ReversibleDeleteMixin",
     "OptimizedQueryMixin",
     "render_fx",
 ]

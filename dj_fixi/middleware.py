@@ -17,8 +17,12 @@ class FxMiddleware:
 
     def __call__(self, request):
         # Detect Fixi request
-        request.is_fx = self._is_fixi_request(request)
-        request.fx_info = self._get_fx_info(request)
+        request.is_fx = request.headers.get("FX-Request") == "true"
+
+        # Extract Fixi headers
+        request.fx_target = request.headers.get("FX-Target")
+        request.fx_swap = request.headers.get("FX-Swap", "innerHTML")
+        request.fx_trigger = request.headers.get("FX-Trigger")
 
         # Process request
         response = self.get_response(request)
@@ -28,32 +32,3 @@ class FxMiddleware:
             response["X-FX-Response"] = "true"
 
         return response
-
-    def _is_fixi_request(self, request):
-        """Check if this is a Fixi.js request"""
-        return request.headers.get("FX-Request") == "true"
-
-    def _get_fx_info(self, request):
-        """
-        Extract Fixi-related information from request headers.
-
-        Returns dict with:
-            - is_fx: Boolean flag
-            - target: Target selector from FX-Target header
-            - swap: Swap strategy from FX-Swap header
-            - trigger: Triggering element from FX-Trigger header
-        """
-        if not self._is_fixi_request(request):
-            return {
-                "is_fx": False,
-                "target": None,
-                "swap": None,
-                "trigger": None,
-            }
-
-        return {
-            "is_fx": True,
-            "target": request.headers.get("FX-Target"),
-            "swap": request.headers.get("FX-Swap", "innerHTML"),
-            "trigger": request.headers.get("FX-Trigger"),
-        }

@@ -41,7 +41,6 @@ class FxView(View):
         """Enhanced dispatch with Fixi detection."""
         # Detect if this is a Fixi request
         self.is_fx = getattr(request, "is_fx", False)
-        self.fx_info = getattr(request, "fx_info", {})
 
         # Call parent dispatch
         return super().dispatch(request, *args, **kwargs)
@@ -76,11 +75,13 @@ class FxView(View):
 
         Adds:
             - is_fx: Boolean indicating if this is a Fixi request
-            - fx_info: Dict with target, swap, trigger info
+            - fx_target: Target selector
+            - fx_swap: Swap strategy
         """
         context = kwargs.copy()
         context["is_fx"] = self.is_fx
-        context["fx_info"] = self.fx_info
+        context["fx_target"] = getattr(self.request, "fx_target", None)
+        context["fx_swap"] = getattr(self.request, "fx_swap", "innerHTML")
         return context
 
     def render_to_response(self, context=None, **response_kwargs):

@@ -54,23 +54,7 @@ def render_fx(request, fragment_template, page_template=None, context=None, **kw
 
     # Add Fixi context
     context.setdefault("is_fx", is_fx)
-    context.setdefault("fx_info", getattr(request, "fx_info", {}))
+    context.setdefault("fx_target", getattr(request, "fx_target", None))
+    context.setdefault("fx_swap", getattr(request, "fx_swap", "innerHTML"))
 
     return render(request, template, context, **kwargs)
-
-
-def render_fx_json(request, data, **kwargs):
-    """
-    Render JSON response (convenience wrapper).
-
-    Args:
-        request: HttpRequest object
-        data: Data to serialize to JSON
-        **kwargs: Additional arguments for JsonResponse
-
-    Returns:
-        JsonResponse
-    """
-    from django.http import JsonResponse
-
-    return JsonResponse(data, **kwargs)
