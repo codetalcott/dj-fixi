@@ -4,7 +4,7 @@
 
 We've built a complete system where LLM agents (including Claude Code!) generate **interactive web components** instead of static text.
 
-## Try It NOW!
+## Try It NOW
 
 ```bash
 cd /Users/williamtalcott/projects/dj-fixi
@@ -12,6 +12,7 @@ python examples/demo_claude_code_standalone.py
 ```
 
 Select option **2** (Interactive mode) and try:
+
 - "Show me all products"
 - "Create a bar chart of sales"
 - "Show me users with email containing '@example.com'"
@@ -52,20 +53,24 @@ Select option **2** (Interactive mode) and try:
 ## Revolutionary Paradigm
 
 **Before:**
+
 ```
 User: "Show me sales data"
 LLM: "Here's the data:
      - Product A: $100
      - Product B: $200"
 ```
+
 ❌ Static text
 
 **After:**
+
 ```
 User: "Show me sales data"
 LLM: [Generates Django view code]
 User sees: [Interactive sortable table]
 ```
+
 ✅ Explorable, filterable, exportable
 
 ## Example Output
@@ -73,6 +78,7 @@ User sees: [Interactive sortable table]
 When you ask Claude Code: **"Show me products with price > 100"**
 
 **Generated Code:**
+
 ```python
 class GeneratedView(FxCRUDView):
     model = Product
@@ -88,6 +94,7 @@ class GeneratedView(FxCRUDView):
 ```
 
 **User Gets:**
+
 - ✅ Sortable table (click headers)
 - ✅ Search box
 - ✅ Pagination
@@ -105,6 +112,7 @@ class GeneratedView(FxCRUDView):
 ## Integration Options
 
 ### 1. Claude Code (Now!)
+
 ```python
 from dj_fixi.llm.claude_code_adapter import ask_claude
 
@@ -113,6 +121,7 @@ result = ask_claude("Show me all products")
 ```
 
 ### 2. Anthropic API
+
 ```python
 from anthropic import Anthropic
 from dj_fixi.llm.tools import get_tool_definitions
@@ -126,6 +135,7 @@ response = client.messages.create(
 ```
 
 ### 3. OpenAI
+
 ```python
 from openai import OpenAI
 from dj_fixi.llm.tools import format_tool_for_openai
@@ -155,17 +165,20 @@ User explores (sort, filter, edit, export)
 ## Next Steps
 
 **Immediate:**
+
 1. ✅ Run the demo: `python examples/demo_claude_code_standalone.py`
 2. Try interactive mode (option 2)
 3. Ask for different components
 
 **Integration:**
+
 1. Connect to Anthropic/OpenAI API
 2. Build FixiPlug table plugin (Phase 1 + 1.5)
 3. Create chat web interface
 4. Add component storage
 
 **Enhancement:**
+
 1. More component types (calendar, map, tree)
 2. Self-correction (LLM fixes errors)
 3. Collaborative editing

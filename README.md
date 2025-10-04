@@ -10,6 +10,10 @@ Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi) - a lig
 - 📊 **CRUD Renderers** - Field-type aware table rendering with inline editing
 - 🎨 **Template Tags** - Helpers for Fixi attributes and patterns
 - ✨ **Out-of-Band Updates** - Support for OOB swaps
+- 🤖 **MCP Integration** - Standardized JSON responses for LLM agents
+- ✅ **Field Validation** - Declarative validation rules with type checking
+- 📝 **Audit Logging** - Optional change tracking for updates
+- 🧪 **Testing Utilities** - Test client with Fixi and MCP helpers
 
 ## Installation
 
@@ -86,6 +90,56 @@ Adapted from:
 - Request header: `HX-Request: true`
 - Attributes: `hx-get`, `hx-post`, `hx-target`, `hx-swap`
 - More complex features (history, indicators, etc.)
+
+## MCP Integration
+
+dj-fixi provides standardized JSON responses compatible with Model Context Protocol (MCP) for LLM agent integration.
+
+```python
+from dj_fixi.views import FxCRUDView
+
+class ProductCRUDView(FxCRUDView):
+    model = Product
+    fields = ['name', 'price', 'stock']
+    editable_fields = ['price', 'stock']
+
+    # Field validation
+    validation_rules = {
+        'price': {
+            'required': True,
+            'type': (int, float, Decimal),
+            'validator': lambda v: v > 0 or ValueError("Must be positive")
+        }
+    }
+
+    # Audit logging
+    enable_audit_log = True
+
+    def log_change(self, obj, old_values, new_values, user):
+        AuditLog.objects.create(...)
+```
+
+All responses follow MCP format:
+```json
+{
+  "success": true,
+  "data": {"id": 1, "name": "Product"},
+  "meta": {
+    "timestamp": "2024-01-01T00:00:00",
+    "view": "ProductCRUDView",
+    "model": "Product"
+  }
+}
+```
+
+See [MCP_IMPLEMENTATION_SUMMARY.md](MCP_IMPLEMENTATION_SUMMARY.md) for details.
+
+## Documentation
+
+- [MCP_IMPLEMENTATION_SUMMARY.md](MCP_IMPLEMENTATION_SUMMARY.md) - MCP integration guide
+- [MCP_INTEGRATION_PATTERNS.md](MCP_INTEGRATION_PATTERNS.md) - Patterns and best practices
+- [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Core features overview
+- [CLAUDE.md](CLAUDE.md) - Development guide
 
 ## License
 

@@ -9,9 +9,68 @@ from typing import Any, Dict, List, Optional, Type
 from urllib.parse import urlencode
 
 from django.db import models
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+class MCPResponseMixin:
+    """
+    Mixin to ensure MCP-compatible JSON responses.
+
+    All responses follow standardized format:
+    {
+        "success": bool,
+        "data": {...},
+        "meta": {...}
+    }
+    """
+
+    def get_mcp_meta(self) -> Dict[str, Any]:
+        """Override to add custom metadata."""
+        meta = {
+            'timestamp': timezone.now().isoformat()
+        }
+
+        # Add view and model info if available
+        if hasattr(self, '__class__'):
+            meta['view'] = self.__class__.__name__
+        if hasattr(self, 'model') and self.model:
+            meta['model'] = self.model.__name__
+
+        return meta
+
+    def mcp_success_response(
+        self,
+        data: Any,
+        status: int = 200,
+        extra_meta: Dict[str, Any] = None
+    ) -> JsonResponse:
+        """Create standardized success response."""
+        meta = self.get_mcp_meta()
+        if extra_meta:
+            meta.update(extra_meta)
+
+        return JsonResponse({
+            'success': True,
+            'data': data,
+            'meta': meta
+        }, status=status)
+
+    def mcp_error_response(
+        self,
+        error: str,
+        status: int = 400,
+        error_code: str = None
+    ) -> JsonResponse:
+        """Create standardized error response."""
+        return JsonResponse({
+            'success': False,
+            'error': error,
+            'error_code': error_code,
+            'meta': self.get_mcp_meta()
+        }, status=status)
 
 
 class ContextPersistenceMixin:

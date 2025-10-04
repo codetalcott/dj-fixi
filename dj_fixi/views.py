@@ -8,8 +8,11 @@ from django.http import HttpResponse, JsonResponse
 from django.template.response import TemplateResponse
 from django.views import View
 from django.shortcuts import get_object_or_404
-from django.core.exceptions import FieldDoesNotExist
+from django.core.exceptions import FieldDoesNotExist, ValidationError
+from typing import Any, Dict, List, Tuple
 import json
+
+from .mixins import MCPResponseMixin
 
 
 class FxView(View):
@@ -138,7 +141,7 @@ class FxTemplateView(FxView):
         return self.render_to_response(context)
 
 
-class FxCRUDView(View):
+class FxCRUDView(MCPResponseMixin, View):
     """
     Unified CRUD view optimized for FixiPlug table plugin.
 
@@ -166,16 +169,93 @@ class FxCRUDView(View):
     model = None
     fields = []
     editable_fields = []  # Fields that can be edited inline
+    read_only_fields = []  # Fields for display only
     searchable_fields = []  # Fields that can be searched
     template_name = None
     paginate_by = 10
     ordering = None
+
+    # Validation rules
+    validation_rules: Dict[str, Dict[str, Any]] = {}
+
+    # Change tracking
+    enable_audit_log: bool = False
 
     def get_queryset(self):
         """Get base queryset."""
         if self.model is None:
             raise ValueError("model must be specified")
         return self.model.objects.all()
+
+    def validate_field(self, field: str, value: Any) -> Tuple[bool, str]:
+        """
+        Validate individual field value.
+
+        Returns:
+            (is_valid, error_message)
+        """
+        if field not in self.validation_rules:
+            return True, ""
+
+        rules = self.validation_rules[field]
+
+        # Required check
+        if rules.get('required') and not value:
+            return False, f"{field} is required"
+
+        # Type check
+        expected_type = rules.get('type')
+        if expected_type and value is not None:
+            if not isinstance(value, expected_type):
+                type_name = expected_type.__name__ if hasattr(expected_type, '__name__') else str(expected_type)
+                return False, f"{field} must be of type {type_name}"
+
+        # Custom validator
+        validator = rules.get('validator')
+        if validator and value is not None:
+            try:
+                validator(value)
+            except (ValueError, ValidationError) as e:
+                return False, str(e)
+
+        return True, ""
+
+    def validate_data(self, data: Dict[str, Any]) -> Tuple[bool, List[str]]:
+        """
+        Validate all provided data.
+
+        Returns:
+            (is_valid, error_messages)
+        """
+        errors = []
+
+        for field, value in data.items():
+            if field == 'id':
+                continue  # Skip id field
+
+            if field not in self.editable_fields:
+                errors.append(f"{field} is not editable")
+                continue
+
+            is_valid, error = self.validate_field(field, value)
+            if not is_valid:
+                errors.append(error)
+
+        return len(errors) == 0, errors
+
+    def log_change(
+        self,
+        obj: Any,
+        old_values: Dict,
+        new_values: Dict,
+        user: Any
+    ):
+        """
+        Log changes for audit trail.
+
+        Override this method to implement custom audit logging.
+        """
+        pass
 
     def get_filtered_queryset(self, request):
         """Apply filters, search, and sorting."""
@@ -302,30 +382,55 @@ class FxCRUDView(View):
         return HttpResponse(table.render())
 
     def post(self, request, *args, **kwargs):
-        """Create new record."""
+        """Create new record with validation and MCP response."""
         try:
             data = json.loads(request.body)
 
-            # Validate fields
+            # Validate data
+            is_valid, errors = self.validate_data(data)
+            if not is_valid:
+                return self.mcp_error_response(
+                    error="; ".join(errors),
+                    status=400,
+                    error_code='VALIDATION_ERROR'
+                )
+
+            # Filter to allowed fields
             create_data = {}
             for field in self.fields:
-                if field in data:
+                if field in data and field != 'id':
                     create_data[field] = data[field]
 
             obj = self.model.objects.create(**create_data)
 
-            return JsonResponse({
-                'success': True,
-                'id': obj.pk,
-                'data': self.serialize_object(obj)
-            }, status=201)
+            return self.mcp_success_response(
+                data=self.serialize_object(obj),
+                status=201,
+                extra_meta={'created_id': obj.pk}
+            )
 
+        except json.JSONDecodeError:
+            return self.mcp_error_response(
+                error="Invalid JSON",
+                status=400,
+                error_code='INVALID_JSON'
+            )
+        except ValidationError as e:
+            return self.mcp_error_response(
+                error=str(e),
+                status=422,
+                error_code='VALIDATION_ERROR'
+            )
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return self.mcp_error_response(
+                error=str(e),
+                status=500,
+                error_code='INTERNAL_ERROR'
+            )
 
     def patch(self, request, pk=None, *args, **kwargs):
         """
-        Update record.
+        Update record with validation and MCP response.
 
         - Inline edit: {id, column, value}
         - Full update: {id, field1: value1, field2: value2, ...}
@@ -344,53 +449,130 @@ class FxCRUDView(View):
 
                 # Validate field is editable
                 if field not in self.editable_fields:
-                    return JsonResponse({'error': 'Field not editable'}, status=403)
+                    return self.mcp_error_response(
+                        error='Field not editable',
+                        status=403,
+                        error_code='FIELD_NOT_EDITABLE'
+                    )
 
                 # Validate field exists
                 try:
                     self.model._meta.get_field(field)
                 except FieldDoesNotExist:
-                    return JsonResponse({'error': 'Invalid field'}, status=400)
+                    return self.mcp_error_response(
+                        error='Invalid field',
+                        status=400,
+                        error_code='INVALID_FIELD'
+                    )
+
+                # Validate field value
+                is_valid, error = self.validate_field(field, value)
+                if not is_valid:
+                    return self.mcp_error_response(
+                        error=error,
+                        status=400,
+                        error_code='VALIDATION_ERROR'
+                    )
+
+                # Track old value if audit enabled
+                if self.enable_audit_log:
+                    old_value = getattr(obj, field)
 
                 # Update field
                 setattr(obj, field, value)
                 obj.full_clean()
                 obj.save(update_fields=[field])
 
-                return JsonResponse({
-                    'success': True,
-                    'id': obj.pk,
-                    'column': field,
-                    'value': value
-                })
+                # Log change
+                if self.enable_audit_log:
+                    self.log_change(
+                        obj=obj,
+                        old_values={field: old_value},
+                        new_values={field: value},
+                        user=request.user
+                    )
+
+                return self.mcp_success_response(
+                    data={
+                        'id': obj.pk,
+                        'column': field,
+                        'value': value
+                    },
+                    extra_meta={'updated_fields': [field]}
+                )
             else:
                 # Full update
                 obj_pk = data.pop('id', pk)
                 obj = get_object_or_404(self.model, pk=obj_pk)
 
+                # Validate all data
+                is_valid, errors = self.validate_data(data)
+                if not is_valid:
+                    return self.mcp_error_response(
+                        error="; ".join(errors),
+                        status=400,
+                        error_code='VALIDATION_ERROR'
+                    )
+
+                # Track changes if enabled
+                if self.enable_audit_log:
+                    old_values = {
+                        field: getattr(obj, field)
+                        for field in data.keys()
+                        if hasattr(obj, field)
+                    }
+
                 # Update fields
                 updated_fields = []
                 for field, value in data.items():
-                    if field in self.fields:
+                    if field in self.editable_fields:
                         setattr(obj, field, value)
                         updated_fields.append(field)
 
                 obj.full_clean()
                 obj.save(update_fields=updated_fields)
 
-                return JsonResponse({
-                    'success': True,
-                    'id': obj.pk,
-                    'data': self.serialize_object(obj)
-                })
+                # Log changes
+                if self.enable_audit_log:
+                    self.log_change(
+                        obj=obj,
+                        old_values=old_values,
+                        new_values=data,
+                        user=request.user
+                    )
 
-        except ValueError as e:
-            return JsonResponse({'error': f'Validation error: {str(e)}'}, status=422)
+                return self.mcp_success_response(
+                    data=self.serialize_object(obj),
+                    extra_meta={'updated_fields': updated_fields}
+                )
+
+        except self.model.DoesNotExist:
+            return self.mcp_error_response(
+                error="Object not found",
+                status=404,
+                error_code='NOT_FOUND'
+            )
+        except json.JSONDecodeError:
+            return self.mcp_error_response(
+                error="Invalid JSON",
+                status=400,
+                error_code='INVALID_JSON'
+            )
+        except ValidationError as e:
+            return self.mcp_error_response(
+                error=str(e),
+                status=422,
+                error_code='VALIDATION_ERROR'
+            )
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return self.mcp_error_response(
+                error=str(e),
+                status=500,
+                error_code='INTERNAL_ERROR'
+            )
 
     def delete(self, request, pk=None, *args, **kwargs):
-        """Delete record(s)."""
+        """Delete record(s) with MCP response support."""
         try:
             data = json.loads(request.body) if request.body else {}
 
@@ -398,17 +580,46 @@ class FxCRUDView(View):
             if 'ids' in data:
                 ids = data['ids']
                 count = self.model.objects.filter(pk__in=ids).delete()[0]
-                return JsonResponse({'success': True, 'deleted': count})
+
+                if self.wants_json(request):
+                    return self.mcp_success_response(
+                        data={'deleted': count},
+                        extra_meta={'operation': 'bulk_delete'}
+                    )
+                return HttpResponse('', status=200)
 
             # Single delete
             obj_pk = data.get('id') or pk
             obj = get_object_or_404(self.model, pk=obj_pk)
+            deleted_id = obj.pk
             obj.delete()
 
+            # Return MCP response for JSON requests, empty for HTML/Fixi
+            if self.wants_json(request):
+                return self.mcp_success_response(
+                    data={'deleted': deleted_id},
+                    extra_meta={'operation': 'delete'}
+                )
             return HttpResponse('', status=200)  # Empty response for Fixi swap
 
+        except self.model.DoesNotExist:
+            return self.mcp_error_response(
+                error="Object not found",
+                status=404,
+                error_code='NOT_FOUND'
+            )
+        except json.JSONDecodeError:
+            return self.mcp_error_response(
+                error="Invalid JSON",
+                status=400,
+                error_code='INVALID_JSON'
+            )
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return self.mcp_error_response(
+                error=str(e),
+                status=500,
+                error_code='INTERNAL_ERROR'
+            )
 
     def wants_json(self, request):
         """Check if client wants JSON response."""
