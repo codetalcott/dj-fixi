@@ -21,13 +21,17 @@ dj_fixi/views.py                  |   7 +-
 ## What Was Removed
 
 ### 1. **BulkActionMixin** (99 lines) ❌
+
 **Reason:** Over-engineered and too opinionated
+
 - Complex permission system that assumes specific permission naming
 - Too much magic - developers should write explicit queryset operations
 - **Better approach:** Use standard Django `queryset.update()` or `queryset.delete()` directly
 
 ### 2. **ReversibleDeleteMixin** (129 lines) ❌
+
 **Reason:** Over-engineered for a library
+
 - Requires cache backend configuration
 - Requires specific model field (`deleted_at`)
 - Complex undo URL routing
@@ -35,7 +39,9 @@ dj_fixi/views.py                  |   7 +-
 - **Better approach:** Implement soft deletes as needed using standard Django patterns
 
 ### 3. **ModelTableRenderer** (370 lines, entire file) ❌
+
 **Reason:** Wrong abstraction layer
+
 - Widget generation belongs in Django forms, not renderers
 - Tight coupling to Fixi attributes
 - Difficult to customize without understanding internals
@@ -43,11 +49,14 @@ dj_fixi/views.py                  |   7 +-
 - **Better approach:** Use Django forms + templates for CRUD UIs
 
 ### 4. **render_fx_json()** shortcut ❌
+
 **Reason:** Adds no value
+
 - Just wraps `JsonResponse()` with no additional functionality
 - **Better approach:** Use `JsonResponse()` directly
 
 ### 5. **Template tags removed:**
+
 - `render_fx_table` - Depended on removed ModelTableRenderer
 - `get_attr` filter - Built into Django templates already (`{{ obj.field }}`)
 - `fx_indicator` tag - Users can write their own HTML
@@ -55,9 +64,11 @@ dj_fixi/views.py                  |   7 +-
 ## What Was Simplified
 
 ### 1. **Middleware** (37 lines removed)
+
 **Before:** Duplicate `is_fx` checks in `_is_fixi_request()` and `_get_fx_info()`
 
 **After:** Direct attribute setting
+
 ```python
 request.is_fx = request.headers.get("FX-Request") == "true"
 request.fx_target = request.headers.get("FX-Target")
@@ -66,15 +77,18 @@ request.fx_trigger = request.headers.get("FX-Trigger")
 ```
 
 ### 2. **Views** (7 lines removed)
+
 **Before:** Used `fx_info` dict to pass metadata
 
 **After:** Direct attribute access
+
 ```python
 context["fx_target"] = request.fx_target
 context["fx_swap"] = request.fx_swap
 ```
 
 ### 3. **Shortcuts** (20 lines removed)
+
 - Removed `render_fx_json()` function
 - Updated `render_fx()` to use simplified attributes
 
@@ -116,6 +130,7 @@ tests/
 ```
 
 **Key tests:**
+
 - Middleware detects Fixi requests correctly
 - Middleware extracts headers properly
 - Views select correct templates
@@ -124,9 +139,10 @@ tests/
 
 ## Migration Guide
 
-### If you were using removed features:
+### If you were using removed features
 
 #### BulkActionMixin → Direct queryset operations
+
 ```python
 # Before
 class MyView(BulkActionMixin, ListView):
@@ -144,6 +160,7 @@ def bulk_archive(request):
 ```
 
 #### ReversibleDeleteMixin → Standard soft delete
+
 ```python
 # Before
 class MyDeleteView(ReversibleDeleteMixin, DeleteView):
@@ -160,6 +177,7 @@ class MyDeleteView(DeleteView):
 ```
 
 #### ModelTableRenderer → Django forms + templates
+
 ```python
 # Before
 renderer = ModelTableRenderer(objects=products, resource_name='products')
@@ -173,7 +191,7 @@ class ProductForm(forms.ModelForm):
 # Then render with standard templates
 ```
 
-### If you were using core features:
+### If you were using core features
 
 **No changes needed!** The core API (FxView, FxResponseMixin, render_fx, fx_attrs) remains the same.
 
@@ -190,18 +208,21 @@ class ProductForm(forms.ModelForm):
 ## Recommendations for Future
 
 ### Priority 1 - Essential
+
 - [x] Add test suite ✅ (Done)
 - [ ] Run tests and verify they pass
 - [ ] Document what Fixi.js actually is (not published yet)
 - [x] Fix bugs in existing code ✅ (Done)
 
 ### Priority 2 - Polish
+
 - [ ] Add type hints throughout
 - [ ] Create working demo with actual Fixi.js
 - [ ] Add CI/CD with GitHub Actions
 - [ ] Publish to PyPI
 
 ### Priority 3 - Consider
+
 - Is this even needed as a library, or just documentation?
 - Core value is ~200 lines of code
 - Could be a blog post + GitHub gist instead

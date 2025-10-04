@@ -212,3 +212,54 @@ class OptimizedQueryMixin:
             queryset = queryset.prefetch_related(*self.prefetch_related_fields)
 
         return queryset
+
+
+class FxTableMixin:
+    """
+    Adds automatic table rendering with Fixi.js integration to ListView.
+
+    Provides backend-driven inline editing without manual template work.
+
+    Input Contract:
+        - table_fields: List of model fields to display
+        - editable_fields: List of fields that can be edited inline (optional)
+        - table_actions: List of actions ['edit', 'delete'] (optional)
+        - table_formatters: Dict of field_name -> formatter_function (optional)
+
+    Output Contract:
+        - Adds 'table' to context with auto-generated Fixi attributes
+        - Table supports inline editing, sorting, and CRUD actions
+
+    Example:
+        class ProductListView(FxTableMixin, ListView):
+            model = Product
+            table_fields = ['name', 'price', 'stock', 'is_active']
+            editable_fields = ['name', 'stock']
+            table_actions = ['edit', 'delete']
+            table_formatters = {'price': lambda p: f'${p:.2f}'}
+    """
+
+    table_fields: List[str] = []
+    editable_fields: List[str] = []
+    table_actions: List[str] = ["edit", "delete"]
+    table_formatters: Dict[str, Any] = {}
+    table_view_prefix: Optional[str] = None
+
+    def get_context_data(self, **kwargs) -> Dict[str, Any]:
+        """Add auto-generated table to context."""
+        context = super().get_context_data(**kwargs)
+
+        # Only add table if fields are configured
+        if self.table_fields:
+            from dj_fixi.tables import ModelTable
+
+            context["table"] = ModelTable(
+                queryset=context["object_list"],
+                fields=self.table_fields,
+                editable_fields=self.editable_fields,
+                actions=self.table_actions,
+                formatters=self.table_formatters,
+                view_name_prefix=self.table_view_prefix or self.model._meta.model_name,
+            )
+
+        return context
