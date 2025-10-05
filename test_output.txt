@@ -1,0 +1,60 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-8.4.2, pluggy-1.6.0 -- /Users/williamtalcott/projects/dj-fixi/.venv/bin/python3
+cachedir: .pytest_cache
+django: version: 5.2.7, settings: tests.settings (from ini)
+rootdir: /Users/williamtalcott/projects/dj-fixi
+configfile: pytest.ini
+plugins: django-4.11.1
+collecting ... collected 49 items
+
+tests/test_mcp_integration.py::TestMCPResponseMixin::test_mcp_error_response_format PASSED [  2%]
+tests/test_mcp_integration.py::TestMCPResponseMixin::test_mcp_meta_with_extra_data PASSED [  4%]
+tests/test_mcp_integration.py::TestMCPResponseMixin::test_mcp_success_response_format PASSED [  6%]
+tests/test_mcp_integration.py::TestFxCRUDViewValidation::test_validate_data_all_valid PASSED [  8%]
+tests/test_mcp_integration.py::TestFxCRUDViewValidation::test_validate_data_editable_fields PASSED [ 10%]
+tests/test_mcp_integration.py::TestFxCRUDViewValidation::test_validate_field_custom_validator PASSED [ 12%]
+tests/test_mcp_integration.py::TestFxCRUDViewValidation::test_validate_field_required PASSED [ 14%]
+tests/test_mcp_integration.py::TestFxCRUDViewValidation::test_validate_field_type PASSED [ 16%]
+tests/test_mcp_integration.py::TestFxCRUDViewAuditLog::test_audit_log_called_on_update PASSED [ 18%]
+tests/test_mcp_integration.py::TestFxMiddleware::test_middleware_adds_execution_time PASSED [ 20%]
+tests/test_mcp_integration.py::TestFxMiddleware::test_middleware_detects_mcp_session PASSED [ 22%]
+tests/test_mcp_integration.py::TestFxTestClient::test_fx_get_sets_headers PASSED [ 24%]
+tests/test_mcp_integration.py::TestFxTestClient::test_mcp_get_sets_headers PASSED [ 26%]
+tests/test_mcp_integration.py::TestMCPResponseAssertions::test_assert_mcp_response_error PASSED [ 28%]
+tests/test_mcp_integration.py::TestMCPResponseAssertions::test_assert_mcp_response_success PASSED [ 30%]
+tests/test_mcp_integration.py::TestMCPResponseAssertions::test_assert_validation_error PASSED [ 32%]
+tests/test_mcp_integration.py::TestRealWorldIntegrationPattern::test_custom_mcp_meta_pattern PASSED [ 34%]
+tests/test_mcp_integration.py::TestRealWorldIntegrationPattern::test_validation_rules_pattern PASSED [ 36%]
+tests/test_llm_integration.py::TestComponentGenerator::test_validate_safe_code PASSED [ 38%]
+tests/test_llm_integration.py::TestComponentGenerator::test_validate_rejects_imports PASSED [ 40%]
+tests/test_llm_integration.py::TestComponentGenerator::test_validate_rejects_exec PASSED [ 42%]
+tests/test_llm_integration.py::TestComponentGenerator::test_validate_rejects_file_ops PASSED [ 44%]
+tests/test_llm_integration.py::TestTableGenerator::test_generate_basic_table PASSED [ 46%]
+tests/test_llm_integration.py::TestTableGenerator::test_generate_table_with_filters PASSED [ 48%]
+tests/test_llm_integration.py::TestTableGenerator::test_generate_editable_table PASSED [ 51%]
+tests/test_llm_integration.py::TestChartGenerator::test_generate_bar_chart PASSED [ 53%]
+tests/test_llm_integration.py::TestSafeExecutor::test_validate_safe_code PASSED [ 55%]
+tests/test_llm_integration.py::TestSafeExecutor::test_validate_rejects_dangerous_code PASSED [ 57%]
+tests/test_llm_integration.py::TestSafeExecutor::test_safe_namespace_has_required_objects PASSED [ 59%]
+tests/test_llm_integration.py::TestSafeExecutor::test_safe_namespace_excludes_dangerous_modules PASSED [ 61%]
+tests/test_llm_integration.py::TestIntegration::test_generate_and_validate PASSED [ 63%]
+tests/test_middleware.py::test_middleware_detects_fx_request PASSED      [ 65%]
+tests/test_middleware.py::test_middleware_detects_non_fx_request PASSED  [ 67%]
+tests/test_middleware.py::test_middleware_extracts_fx_headers PASSED     [ 69%]
+tests/test_middleware.py::test_middleware_sets_defaults_for_missing_headers PASSED [ 71%]
+tests/test_middleware.py::test_middleware_handles_non_fx_request_attributes PASSED [ 73%]
+tests/test_shortcuts.py::test_render_fx_selects_fragment_for_fx_request PASSED [ 75%]
+tests/test_shortcuts.py::test_render_fx_adds_fx_context PASSED           [ 77%]
+tests/test_template_tags.py::test_fx_attrs_basic PASSED                  [ 79%]
+tests/test_template_tags.py::test_fx_attrs_with_method PASSED            [ 81%]
+tests/test_template_tags.py::test_fx_attrs_with_target PASSED            [ 83%]
+tests/test_template_tags.py::test_fx_attrs_with_swap PASSED              [ 85%]
+tests/test_template_tags.py::test_fx_attrs_omits_defaults PASSED         [ 87%]
+tests/test_template_tags.py::test_fx_csrf_token PASSED                   [ 89%]
+tests/test_template_tags.py::test_fixi_cdn PASSED                        [ 91%]
+tests/test_views.py::test_fx_view_detects_fx_request PASSED              [ 93%]
+tests/test_views.py::test_fx_view_template_selection_for_fx_request PASSED [ 95%]
+tests/test_views.py::test_fx_view_template_fallback_with_suffix PASSED   [ 97%]
+tests/test_views.py::test_fx_view_context_includes_fx_metadata PASSED    [100%]
+
+============================== 49 passed in 0.07s ==============================

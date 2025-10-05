@@ -1,5 +1,6 @@
 """Tests for MCP integration features."""
 
+import json
 import pytest
 from decimal import Decimal
 from django.test import TestCase
@@ -59,7 +60,7 @@ class TestMCPResponseMixin(TestCase):
             status=200
         )
 
-        data = response.json()
+        data = json.loads(response.content)
         assert data['success'] is True
         assert 'data' in data
         assert 'meta' in data
@@ -75,7 +76,7 @@ class TestMCPResponseMixin(TestCase):
             error_code='VALIDATION_ERROR'
         )
 
-        data = response.json()
+        data = json.loads(response.content)
         assert data['success'] is False
         assert data['error'] == 'Validation failed'
         assert data['error_code'] == 'VALIDATION_ERROR'
@@ -90,7 +91,7 @@ class TestMCPResponseMixin(TestCase):
             extra_meta={'updated_fields': ['name', 'price']}
         )
 
-        data = response.json()
+        data = json.loads(response.content)
         assert data['meta']['updated_fields'] == ['name', 'price']
         assert 'timestamp' in data['meta']
 

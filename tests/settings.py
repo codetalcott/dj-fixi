@@ -16,7 +16,7 @@ MIDDLEWARE = [
     "dj_fixi.middleware.FxMiddleware",
 ]
 
-ROOT_URLCONF = "tests.urls"
+ROOT_URLCONF = "tests.test_urls"
 
 DATABASES = {
     "default": {

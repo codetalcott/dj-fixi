@@ -1,0 +1,47 @@
+═══════════════════════════════════════════════════
+  dj-fixi Validation Test Report
+  Generated: Sat Oct  4 21:22:08 EDT 2025
+═══════════════════════════════════════════════════
+
+UNIT TESTS
+----------
+tests/test_mcp_integration.py::TestMCPResponseMixin::test_mcp_error_response_format PASSED [  2%]
+tests/test_mcp_integration.py::TestMCPResponseAssertions::test_assert_mcp_response_error PASSED [ 28%]
+tests/test_mcp_integration.py::TestMCPResponseAssertions::test_assert_validation_error PASSED [ 32%]
+============================== 49 passed in 0.07s ==============================
+
+INTEGRATION TESTS
+-----------------
+Not run (server not available)
+
+COVERAGE
+--------
+
+
+FILES CREATED
+-------------
+✓ /Users/williamtalcott/projects/transcripts/transcript_manager/views_crud.py
+✓ /Users/williamtalcott/projects/transcripts/transcript_manager/urls.py (updated)
+✓ /Users/williamtalcott/projects/dj-fixi/tests/test_fxcrudview.py
+✓ /Users/williamtalcott/projects/dj-fixi/tests/integration_test.sh
+✓ /Users/williamtalcott/projects/dj-fixi/MCP_TOOLS_TEST_GUIDE.md
+✓ /Users/williamtalcott/projects/dj-fixi/TEST_RESULTS.md
+
+NEXT STEPS
+----------
+1. Review test results in test_output.txt and integration_output.txt
+2. Fix any failing tests
+3. Test MCP tools manually (see MCP_TOOLS_TEST_GUIDE.md)
+4. Update TEST_RESULTS.md with findings
+5. Start Django server if not running:
+   cd /Users/williamtalcott/projects/transcripts && python manage.py runserver
+
+MANUAL MCP TESTING
+------------------
+With Django server running, test MCP tools via Claude chat:
+- Navigate to /experimental/agent-test/
+- Query courses database
+- Extract table data
+- Test form interactions
+
+See MCP_TOOLS_TEST_GUIDE.md for detailed instructions.

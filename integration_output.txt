@@ -1,0 +1,7 @@
+=== FxCRUDView Integration Tests ===
+Testing against: http://localhost:8000/experimental/courses
+
+[0;32m✓ Server is running[0m
+
+[1;33mTest 1:[0m GET list with JSON response
+[0;32m✓ PASS[0m

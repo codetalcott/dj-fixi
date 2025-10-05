@@ -120,7 +120,7 @@ def assert_mcp_response(response, success=True):
     assert response.status_code in (200, 201, 400, 403, 404, 422, 500), \
         f"Unexpected status code: {response.status_code}"
 
-    data = response.json()
+    data = json.loads(response.content)
 
     # Check required fields
     assert 'success' in data, "Response missing 'success' field"

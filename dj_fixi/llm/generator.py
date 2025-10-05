@@ -187,6 +187,7 @@ class TableGenerator(ComponentGenerator):
                 "model": model_name,
                 "fields": fields,
                 "editable": bool(editable_fields),
+                "editable_fields": editable_fields,
                 "sortable": sortable,
                 "filters": filters,
             },

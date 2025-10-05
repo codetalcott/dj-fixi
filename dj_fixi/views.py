@@ -43,11 +43,13 @@ class FxView(View):
     partial_template = None
     json_fields = None  # Fields to include in JSON response
 
+    @property
+    def is_fx(self):
+        """Check if current request is a Fixi request."""
+        return getattr(self.request, "is_fx", False)
+
     def dispatch(self, request, *args, **kwargs):
         """Enhanced dispatch with Fixi detection."""
-        # Detect if this is a Fixi request
-        self.is_fx = getattr(request, "is_fx", False)
-
         # Call parent dispatch
         return super().dispatch(request, *args, **kwargs)
 
