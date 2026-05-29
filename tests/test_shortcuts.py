@@ -18,18 +18,18 @@ def test_render_fx_selects_fragment_for_fx_request(rf):
     request.fx_swap = "innerHTML"
     request.fx_trigger = None
 
-    # Would need actual templates to fully test
-    # Just verify it doesn't crash and sets context
-    try:
-        response = render_fx(
+    # Would need actual templates to fully test; just verify the fragment
+    # template is selected for Fixi requests (raised error names the template).
+    from django.template import TemplateDoesNotExist
+
+    with pytest.raises(TemplateDoesNotExist) as exc:
+        render_fx(
             request,
             fragment_template="fragment.html",
             page_template="page.html",
             context={"test": "data"},
         )
-    except:
-        # Template doesn't exist, but we can check the logic worked
-        pass
+    assert "fragment.html" in str(exc.value)
 
 
 def test_render_fx_adds_fx_context(rf):
@@ -42,10 +42,9 @@ def test_render_fx_adds_fx_context(rf):
 
     context = {"test": "data"}
 
-    # We can't actually render without templates, but we can verify
-    # the function doesn't crash with minimal setup
-    try:
-        response = render_fx(request, "test.html", context=context)
-    except:
-        # Template doesn't exist, expected
-        pass
+    # Non-Fixi request with no page_template falls back to the fragment template.
+    from django.template import TemplateDoesNotExist
+
+    with pytest.raises(TemplateDoesNotExist) as exc:
+        render_fx(request, "test.html", context=context)
+    assert "test.html" in str(exc.value)

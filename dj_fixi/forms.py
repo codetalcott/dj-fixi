@@ -5,7 +5,9 @@ Provides Django forms with built-in Fixi attributes for inline editing and updat
 """
 
 from typing import Optional
+
 from django import forms
+from django.forms.utils import flatatt
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
@@ -43,18 +45,18 @@ class FxForm:
         self.css_class = css_class
 
     def render_attrs(self) -> str:
-        """Generate Fixi.js attributes for the form tag."""
-        attrs = [
-            f'fx-action="{self.action}"',
-            f'fx-method="{self.method}"',
-            f'fx-swap="{self.swap}"',
-            f'fx-trigger="{self.trigger}"',
-        ]
+        """Generate Fixi.js attributes for the form tag (values HTML-escaped)."""
+        attrs = {
+            "fx-action": self.action,
+            "fx-method": self.method,
+            "fx-swap": self.swap,
+            "fx-trigger": self.trigger,
+        }
 
         if self.target:
-            attrs.append(f'fx-target="{self.target}"')
+            attrs["fx-target"] = self.target
 
-        return mark_safe(" ".join(attrs))
+        return mark_safe(flatatt(attrs).lstrip())
 
     def render(self) -> str:
         """Render complete form with Fixi attributes."""

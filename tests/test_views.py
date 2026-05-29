@@ -18,7 +18,6 @@ def test_fx_view_detects_fx_request(rf):
         partial_template = "test_partial.html"
 
     request = rf.get("/", HTTP_FX_REQUEST="true")
-    view = TestView.as_view()
 
     # Process through middleware-like setup
     request.is_fx = True

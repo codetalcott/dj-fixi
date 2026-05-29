@@ -3,6 +3,7 @@ Django template tags for Fixi.js integration.
 """
 
 from django import template
+from django.forms.utils import flatatt
 from django.utils.safestring import mark_safe
 
 register = template.Library()
@@ -26,32 +27,33 @@ def fx_attrs(action=None, method="GET", target=None, swap="innerHTML", trigger="
         **kwargs: Additional attributes to add
 
     Returns:
-        Safe string with Fixi attributes
+        Safe string with Fixi attributes (values are HTML-escaped)
     """
-    attrs = []
+    attrs = {}
 
     if action:
-        attrs.append(f'fx-action="{action}"')
+        attrs["fx-action"] = action
 
     if method and method.upper() != "GET":
-        attrs.append(f'fx-method="{method.upper()}"')
+        attrs["fx-method"] = method.upper()
 
     if target:
-        attrs.append(f'fx-target="{target}"')
+        attrs["fx-target"] = target
 
     if swap and swap != "innerHTML":
-        attrs.append(f'fx-swap="{swap}"')
+        attrs["fx-swap"] = swap
 
     if trigger and trigger != "click":
-        attrs.append(f'fx-trigger="{trigger}"')
+        attrs["fx-trigger"] = trigger
 
     # Add any extra attributes
     for key, value in kwargs.items():
         # Convert underscores to hyphens for HTML attributes
-        attr_name = key.replace("_", "-")
-        attrs.append(f'{attr_name}="{value}"')
+        attrs[key.replace("_", "-")] = value
 
-    return mark_safe(" ".join(attrs))
+    # flatatt escapes values and prefixes a leading space; strip it for
+    # consistent placement inside a tag.
+    return mark_safe(flatatt(attrs).lstrip())
 
 
 @register.simple_tag(takes_context=True)
