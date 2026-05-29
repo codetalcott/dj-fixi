@@ -58,4 +58,3 @@ def render_fx(request, fragment_template, page_template=None, context=None, **kw
     context.setdefault("fx_swap", getattr(request, "fx_swap", "innerHTML"))
 
     return render(request, template, context, **kwargs)
-

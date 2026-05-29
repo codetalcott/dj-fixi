@@ -4,8 +4,6 @@ Backend-driven form rendering with automatic Fixi.js integration.
 Provides Django forms with built-in Fixi attributes for inline editing and updates.
 """
 
-from typing import Optional
-
 from django import forms
 from django.forms.utils import flatatt
 from django.utils.html import format_html
@@ -31,10 +29,11 @@ class FxForm:
         form: forms.Form,
         action: str,
         method: str = "POST",
-        target: Optional[str] = None,
+        target: str | None = None,
         swap: str = "innerHTML",
         trigger: str = "submit",
         css_class: str = "fx-form",
+        cancel_action: str | None = None,
     ):
         self.form = form
         self.action = action
@@ -43,6 +42,9 @@ class FxForm:
         self.swap = swap
         self.trigger = trigger
         self.css_class = css_class
+        # Endpoint the Cancel button GETs to restore the original view; falls
+        # back to ``action`` when not supplied.
+        self.cancel_action = cancel_action
 
     def render_attrs(self) -> str:
         """Generate Fixi.js attributes for the form tag (values HTML-escaped)."""
@@ -87,17 +89,26 @@ class InlineEditForm(FxForm):
         inline_form = InlineEditForm(
             form=ProductForm(instance=product),
             action=reverse('product_update', args=[product.pk]),
-            row_id=f'row-{product.pk}'
+            row_id=f'row-{product.pk}',
+            cancel_action=reverse('product_row', args=[product.pk]),
         )
     """
 
-    def __init__(self, form: forms.Form, action: str, row_id: str, **kwargs):
+    def __init__(
+        self,
+        form: forms.Form,
+        action: str,
+        row_id: str,
+        cancel_action: str | None = None,
+        **kwargs,
+    ):
         super().__init__(
             form=form,
             action=action,
             target=f"#{row_id}",
             swap="outerHTML",
             method="POST",
+            cancel_action=cancel_action,
             **kwargs,
         )
         self.row_id = row_id
@@ -121,7 +132,7 @@ class InlineEditForm(FxForm):
                 'fx-swap="outerHTML">'
                 "Cancel</button>"
                 "</td>",
-                self.action.replace("/update/", "/row/"),  # GET row endpoint
+                self.cancel_action or self.action,  # GET endpoint that restores the row
                 self.row_id,
             )
         )
@@ -141,10 +152,12 @@ class FxModelForm(forms.ModelForm):
     Provides methods to render forms with automatic Fixi attributes.
     """
 
-    def as_fx_inline(self, target: str, action: str) -> str:
+    def as_fx_inline(self, target: str, action: str, cancel_action: str | None = None) -> str:
         """Render as inline editable form."""
-        return InlineEditForm(form=self, action=action, row_id=target.lstrip("#")).render()
+        return InlineEditForm(
+            form=self, action=action, row_id=target.lstrip("#"), cancel_action=cancel_action
+        ).render()
 
-    def as_fx_form(self, action: str, target: Optional[str] = None, **kwargs) -> str:
+    def as_fx_form(self, action: str, target: str | None = None, **kwargs) -> str:
         """Render as standard Fixi form."""
         return FxForm(form=self, action=action, target=target, **kwargs).render()

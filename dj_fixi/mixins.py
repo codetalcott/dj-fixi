@@ -4,10 +4,12 @@ Django CBV mixins for Fixi.js integration.
 Simplified to include only essential, non-opinionated mixins.
 """
 
+import json
 import logging
-from typing import Any, Dict, List, Optional, Type
+from typing import Any
 from urllib.parse import urlencode
 
+from django.core.exceptions import FieldDoesNotExist
 from django.db import models
 from django.http import HttpResponse
 
@@ -29,9 +31,9 @@ class ContextPersistenceMixin:
         - Modifies queryset based on URL parameters
     """
 
-    filterset_class: Optional[Type] = None
-    filterset_fields: Optional[List[str]] = None
-    preserved_params: List[str] = ["sort", "page", "q"]
+    filterset_class: type | None = None
+    filterset_fields: list[str] | None = None
+    preserved_params: list[str] = ["sort", "page", "q"]
 
     def get_queryset(self) -> models.QuerySet:
         """Apply filtering and sorting from URL parameters."""
@@ -47,25 +49,24 @@ class ContextPersistenceMixin:
         # Apply sorting with validation
         sort_param = self.request.GET.get("sort", "")
         if sort_param:
-            # Validate sort field exists on model
+            # Validate the sort field against the queryset's model, which is
+            # always available even when the view sets ``queryset`` not ``model``.
             field_name = sort_param.lstrip("-")
             try:
-                self.model._meta.get_field(field_name)
+                queryset.model._meta.get_field(field_name)
                 queryset = queryset.order_by(sort_param)
-            except models.FieldDoesNotExist:
+            except FieldDoesNotExist:
                 logger.warning(f"Invalid sort field: {field_name}")
 
         return queryset
 
-    def get_filterset(self, queryset: models.QuerySet) -> Optional[Any]:
+    def get_filterset(self, queryset: models.QuerySet) -> Any | None:
         """Initialize filterset with current queryset and request."""
         if self.filterset_class:
-            return self.filterset_class(
-                self.request.GET, queryset=queryset, request=self.request
-            )
+            return self.filterset_class(self.request.GET, queryset=queryset, request=self.request)
         return None
 
-    def get_context_data(self, **kwargs) -> Dict[str, Any]:
+    def get_context_data(self, **kwargs) -> dict[str, Any]:
         """Add preserved parameters to context."""
         context = super().get_context_data(**kwargs)
 
@@ -104,7 +105,7 @@ class FxResponseMixin:
     fx_success_event: str = "formSuccess"
     fx_error_event: str = "formError"
 
-    def get_template_names(self) -> List[str]:
+    def get_template_names(self) -> list[str]:
         """Return fragment templates for Fixi requests."""
         if getattr(self.request, "is_fx", False):
             original_templates = super().get_template_names()
@@ -128,24 +129,46 @@ class FxResponseMixin:
         return super().get_template_names()
 
     def form_valid(self, form) -> HttpResponse:
-        """Handle successful form submission for Fixi requests."""
-        if getattr(self.request, "is_fx", False):
-            self.object = form.save()
+        """
+        Handle successful form submission for Fixi requests.
 
-            # Prepare success response
-            context = self.get_context_data(form=form, object=self.object)
-            response = self.render_to_response(context)
+        Delegates the actual mutation to ``super().form_valid()`` so that
+        create/update (``ModelFormMixin``) save the instance and delete
+        (``DeletionMixin``) deletes it — each computing ``success_url``. For
+        non-Fixi requests Django's redirect is returned unchanged.
 
-            # Trigger custom Fixi event (fx:formSuccess)
-            self._trigger_fx_event(
-                response,
-                self.fx_success_event,
-                {"message": self.get_success_message(), "object_id": str(self.object.pk)},
-            )
+        For Fixi requests the redirect is replaced:
+          - create/update (object still has a pk) -> render the fragment and
+            attach the success FX-Trigger event with the object id;
+          - delete or no renderable object -> return ``204 No Content`` with the
+            success FX-Trigger event (the deleted object's id is preserved so the
+            client can remove its row).
+        """
+        # Capture the pk before delegating: DeletionMixin clears it on delete.
+        existing = getattr(self, "object", None)
+        pk_before = getattr(existing, "pk", None)
 
+        response = super().form_valid(form)
+
+        if not getattr(self.request, "is_fx", False):
             return response
 
-        return super().form_valid(form)
+        detail = {"message": self.get_success_message()}
+        obj = getattr(self, "object", None)
+        obj_pk = getattr(obj, "pk", None)
+
+        if obj_pk is not None:
+            # Create/update: hand back the rendered fragment for swapping in.
+            detail["object_id"] = str(obj_pk)
+            fx_response = self.render_to_response(self.get_context_data(form=form))
+        else:
+            # Delete (or no object to render): nothing to swap.
+            if pk_before is not None:
+                detail["object_id"] = str(pk_before)
+            fx_response = HttpResponse(status=204)
+
+        self._trigger_fx_event(fx_response, self.fx_success_event, detail)
+        return fx_response
 
     def form_invalid(self, form) -> HttpResponse:
         """Handle form validation errors for Fixi requests."""
@@ -167,15 +190,15 @@ class FxResponseMixin:
         """Generate success message for the operation."""
         return f"{self.model._meta.verbose_name.title()} saved successfully"
 
-    def _trigger_fx_event(self, response: HttpResponse, event_name: str, detail: dict = None):
+    def _trigger_fx_event(
+        self, response: HttpResponse, event_name: str, detail: dict | None = None
+    ):
         """
         Trigger a custom Fixi event on the client.
 
         Uses FX-Trigger header similar to HTMX's HX-Trigger.
         Event will be dispatched as 'fx:{event_name}' on the client.
         """
-        import json
-
         if detail:
             # Send event with detail data
             response["FX-Trigger"] = json.dumps({event_name: detail})
@@ -198,8 +221,8 @@ class OptimizedQueryMixin:
         - Returns optimized queryset with reduced database queries
     """
 
-    select_related_fields: List[str] = []
-    prefetch_related_fields: List[str] = []
+    select_related_fields: list[str] = []
+    prefetch_related_fields: list[str] = []
 
     def get_queryset(self) -> models.QuerySet:
         """Apply query optimizations."""

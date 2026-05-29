@@ -1,6 +1,7 @@
 """Product forms for demo app"""
 
 from django import forms
+
 from .models import Product
 
 

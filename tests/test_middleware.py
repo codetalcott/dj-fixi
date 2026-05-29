@@ -1,7 +1,8 @@
 """Tests for FxMiddleware"""
+
 import pytest
 from django.http import HttpResponse
-from django.test import RequestFactory
+from django.test import RequestFactory, override_settings
 
 from dj_fixi.middleware import FxMiddleware
 
@@ -76,13 +77,23 @@ def test_middleware_handles_non_fx_request_attributes(middleware, rf):
     assert request.fx_trigger is None
 
 
-def test_middleware_adds_execution_time_header(middleware, rf):
-    """Test that middleware records per-request timing"""
+@override_settings(DEBUG=True)
+def test_middleware_adds_execution_time_header_in_debug(middleware, rf):
+    """Test that middleware records per-request timing when DEBUG is on"""
     request = rf.get("/")
     response = middleware(request)
 
     assert "X-Execution-Time" in response
     assert response["X-Execution-Time"].endswith("ms")
+
+
+@override_settings(DEBUG=False)
+def test_middleware_omits_execution_time_when_not_debug(middleware, rf):
+    """Timing header is suppressed outside DEBUG to avoid leaking timing"""
+    request = rf.get("/")
+    response = middleware(request)
+
+    assert "X-Execution-Time" not in response
 
 
 def test_middleware_no_longer_sets_mcp_attributes(middleware, rf):

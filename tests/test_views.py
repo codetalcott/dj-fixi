@@ -1,4 +1,5 @@
 """Tests for FxView"""
+
 import pytest
 from django.test import RequestFactory
 
