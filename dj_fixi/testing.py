@@ -1,15 +1,17 @@
 """
-Testing utilities for Fixi and MCP integration.
+Testing utilities for Fixi integration.
 
-Provides test clients and helpers for testing Fixi views with MCP compatibility.
+Provides a test client and helpers for testing Fixi views and the standard
+JSON response envelope.
 """
 
 import json
+
 from django.test import Client
 
 
 class FxTestClient(Client):
-    """Test client with Fixi and MCP support."""
+    """Test client with Fixi request helpers."""
 
     def fx_get(self, url, **kwargs):
         """GET request with FX headers."""
@@ -56,56 +58,10 @@ class FxTestClient(Client):
             **kwargs
         )
 
-    def mcp_get(self, url, session_id='test-session', **kwargs):
-        """GET request with MCP headers."""
-        return self.get(
-            url,
-            HTTP_X_MCP_SESSION=session_id,
-            HTTP_ACCEPT='application/json',
-            **kwargs
-        )
 
-    def mcp_post(self, url, data=None, session_id='test-session', **kwargs):
-        """POST request with MCP headers."""
-        if data is not None and not isinstance(data, str):
-            data = json.dumps(data)
-            kwargs.setdefault('content_type', 'application/json')
-
-        return self.post(
-            url,
-            data=data,
-            HTTP_X_MCP_SESSION=session_id,
-            HTTP_ACCEPT='application/json',
-            **kwargs
-        )
-
-    def mcp_patch(self, url, data, session_id='test-session', **kwargs):
-        """PATCH request with MCP headers."""
-        return self.patch(
-            url,
-            data=json.dumps(data),
-            content_type='application/json',
-            HTTP_X_MCP_SESSION=session_id,
-            **kwargs
-        )
-
-    def mcp_delete(self, url, data=None, session_id='test-session', **kwargs):
-        """DELETE request with MCP headers."""
-        if data is not None:
-            data = json.dumps(data)
-            kwargs.setdefault('content_type', 'application/json')
-
-        return self.delete(
-            url,
-            data=data,
-            HTTP_X_MCP_SESSION=session_id,
-            **kwargs
-        )
-
-
-def assert_mcp_response(response, success=True):
+def assert_json_envelope(response, success=True):
     """
-    Assert response follows MCP format.
+    Assert response follows the standard JSON envelope format.
 
     Args:
         response: Django test response
@@ -115,7 +71,7 @@ def assert_mcp_response(response, success=True):
         dict: Response JSON data
 
     Raises:
-        AssertionError: If response doesn't match MCP format
+        AssertionError: If response doesn't match the envelope format
     """
     assert response.status_code in (200, 201, 400, 403, 404, 422, 500), \
         f"Unexpected status code: {response.status_code}"
@@ -154,7 +110,7 @@ def assert_validation_error(response, expected_errors=None):
     Returns:
         dict: Response JSON data
     """
-    data = assert_mcp_response(response, success=False)
+    data = assert_json_envelope(response, success=False)
 
     assert response.status_code in (400, 422), \
         f"Expected validation error status, got {response.status_code}"

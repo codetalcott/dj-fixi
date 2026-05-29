@@ -2,12 +2,70 @@
 import pytest
 from django.test import RequestFactory
 
-from dj_fixi.views import FxTemplateView, FxView
+from dj_fixi.views import FxCRUDView, FxTemplateView, FxView
 
 
 @pytest.fixture
 def rf():
     return RequestFactory()
+
+
+class FakeQuerySet:
+    """Minimal ordered queryset stand-in that tracks slicing.
+
+    Iterating preserves insertion order; slicing returns a new FakeQuerySet
+    over the same ordered items. This lets us assert pagination keeps order
+    without touching the database.
+    """
+
+    def __init__(self, items, model=object):
+        self._items = list(items)
+        self.model = model
+
+    def count(self):
+        return len(self._items)
+
+    def __getitem__(self, key):
+        return FakeQuerySet(self._items[key], model=self.model)
+
+    def __iter__(self):
+        return iter(self._items)
+
+
+def test_paginated_data_preserves_order(rf):
+    """The HTML path must reuse the ordered page slice, not re-query by pk.
+
+    Regression: a `filter(pk__in=[...])` re-query dropped the applied ordering.
+    get_paginated_data now exposes the ordered slice as a queryset.
+    """
+
+    class TestView(FxCRUDView):
+        model = object
+        fields = ["name"]
+        paginate_by = 3
+
+    # Deliberately not pk-sorted: order must come from the queryset, not pks.
+    ordered = [
+        {"pk": 30, "name": "c"},
+        {"pk": 10, "name": "a"},
+        {"pk": 20, "name": "b"},
+        {"pk": 5, "name": "z"},
+    ]
+    qs = FakeQuerySet(ordered)
+    request = rf.get("/?page=1&limit=3")
+
+    view = TestView()
+    paginated = view.get_paginated_data(qs, request)
+
+    # A queryset (not a list) is returned so callers render without re-querying.
+    assert "queryset" in paginated
+    assert isinstance(paginated["queryset"], FakeQuerySet)
+
+    # Order is preserved across the page slice, and matches `items`.
+    assert [obj["name"] for obj in paginated["queryset"]] == ["c", "a", "b"]
+    assert [obj["name"] for obj in paginated["items"]] == ["c", "a", "b"]
+    assert paginated["pagination"]["total"] == 4
+    assert paginated["pagination"]["totalPages"] == 2
 
 
 def test_fx_view_detects_fx_request(rf):
@@ -18,7 +76,6 @@ def test_fx_view_detects_fx_request(rf):
         partial_template = "test_partial.html"
 
     request = rf.get("/", HTTP_FX_REQUEST="true")
-    view = TestView.as_view()
 
     # Process through middleware-like setup
     request.is_fx = True

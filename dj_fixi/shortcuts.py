@@ -2,9 +2,10 @@
 Shortcut functions for Fixi.js integration with Django.
 """
 
-from typing import Dict, List, Optional, Any
-from django.shortcuts import render
+from typing import Any, Dict, List
+
 from django.http import HttpRequest, JsonResponse
+from django.shortcuts import render
 
 
 def render_fx(request, fragment_template, page_template=None, context=None, **kwargs):

@@ -10,7 +10,7 @@ Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi) - a lig
 - 📊 **CRUD Renderers** - Field-type aware table rendering with inline editing
 - 🎨 **Template Tags** - Helpers for Fixi attributes and patterns
 - ✨ **Out-of-Band Updates** - Support for OOB swaps
-- 🤖 **MCP Integration** - Standardized JSON responses for LLM agents
+- 📦 **JSON Responses** - Standardized `{success, data, meta}` envelope from `FxCRUDView`
 - ✅ **Field Validation** - Declarative validation rules with type checking
 - 📝 **Audit Logging** - Optional change tracking for updates
 - 🧪 **Testing Utilities** - Test client with Fixi and MCP helpers
@@ -91,12 +91,20 @@ Adapted from:
 - Attributes: `hx-get`, `hx-post`, `hx-target`, `hx-swap`
 - More complex features (history, indicators, etc.)
 
-## MCP Integration
+## JSON Responses
 
-dj-fixi provides standardized JSON responses compatible with Model Context Protocol (MCP) for LLM agent integration.
+`FxCRUDView` returns a standardized JSON envelope, convenient for client-side
+consumers (such as a FixiPlug table) and any programmatic caller.
 
 ```python
+from decimal import Decimal
 from dj_fixi.views import FxCRUDView
+
+
+def positive(value):
+    if value <= 0:
+        raise ValueError("Must be positive")
+
 
 class ProductCRUDView(FxCRUDView):
     model = Product
@@ -108,7 +116,7 @@ class ProductCRUDView(FxCRUDView):
         'price': {
             'required': True,
             'type': (int, float, Decimal),
-            'validator': lambda v: v > 0 or ValueError("Must be positive")
+            'validator': positive,
         }
     }
 
@@ -119,7 +127,8 @@ class ProductCRUDView(FxCRUDView):
         AuditLog.objects.create(...)
 ```
 
-All responses follow MCP format:
+All JSON responses follow this envelope:
+
 ```json
 {
   "success": true,
@@ -132,14 +141,20 @@ All responses follow MCP format:
 }
 ```
 
-See [MCP_IMPLEMENTATION_SUMMARY.md](MCP_IMPLEMENTATION_SUMMARY.md) for details.
-
 ## Documentation
 
-- [MCP_IMPLEMENTATION_SUMMARY.md](MCP_IMPLEMENTATION_SUMMARY.md) - MCP integration guide
-- [MCP_INTEGRATION_PATTERNS.md](MCP_INTEGRATION_PATTERNS.md) - Patterns and best practices
-- [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Core features overview
+- [docs/FX_CRUD_VIEW.md](docs/FX_CRUD_VIEW.md) - `FxCRUDView` guide
+- [docs/FUNCTIONAL_VIEWS.md](docs/FUNCTIONAL_VIEWS.md) - Function-based view patterns
+- [docs/INTEGRATION_PATTERNS.md](docs/INTEGRATION_PATTERNS.md) - Integration patterns
 - [CLAUDE.md](CLAUDE.md) - Development guide
+
+## Known limitations / follow-ups
+
+- **Two table-rendering paths exist.** `dj_fixi/tables.py` (`FxTable`/`ModelTable`)
+  renders server-side HTML and relies on URL-name conventions like
+  `reverse(f"{prefix}_update_field", ...)`, while `FxCRUDView` is a single JSON
+  endpoint intended for client-side rendering. A future change should pick one
+  canonical path and converge on it.
 
 ## License
 

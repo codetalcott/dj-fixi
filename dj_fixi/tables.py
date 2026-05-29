@@ -6,12 +6,13 @@ Supports both HTML rendering (server-side) and JSON output (for FixiPlug client-
 """
 
 import json
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
+
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
+from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from django.urls import reverse
-from django.core.serializers.json import DjangoJSONEncoder
 
 
 class Column:

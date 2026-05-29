@@ -15,11 +15,11 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
-class MCPResponseMixin:
+class JsonEnvelopeMixin:
     """
-    Mixin to ensure MCP-compatible JSON responses.
+    Mixin providing a standardized JSON response envelope.
 
-    All responses follow standardized format:
+    All responses follow the format:
     {
         "success": bool,
         "data": {...},
@@ -27,7 +27,7 @@ class MCPResponseMixin:
     }
     """
 
-    def get_mcp_meta(self) -> Dict[str, Any]:
+    def get_envelope_meta(self) -> Dict[str, Any]:
         """Override to add custom metadata."""
         meta = {
             'timestamp': timezone.now().isoformat()
@@ -41,14 +41,14 @@ class MCPResponseMixin:
 
         return meta
 
-    def mcp_success_response(
+    def success_response(
         self,
         data: Any,
         status: int = 200,
         extra_meta: Dict[str, Any] = None
     ) -> JsonResponse:
         """Create standardized success response."""
-        meta = self.get_mcp_meta()
+        meta = self.get_envelope_meta()
         if extra_meta:
             meta.update(extra_meta)
 
@@ -58,7 +58,7 @@ class MCPResponseMixin:
             'meta': meta
         }, status=status)
 
-    def mcp_error_response(
+    def error_response(
         self,
         error: str,
         status: int = 400,
@@ -69,7 +69,7 @@ class MCPResponseMixin:
             'success': False,
             'error': error,
             'error_code': error_code,
-            'meta': self.get_mcp_meta()
+            'meta': self.get_envelope_meta()
         }, status=status)
 
 

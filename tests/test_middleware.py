@@ -74,3 +74,22 @@ def test_middleware_handles_non_fx_request_attributes(middleware, rf):
     assert request.fx_target is None
     assert request.fx_swap == "innerHTML"
     assert request.fx_trigger is None
+
+
+def test_middleware_adds_execution_time_header(middleware, rf):
+    """Test that middleware records per-request timing"""
+    request = rf.get("/")
+    response = middleware(request)
+
+    assert "X-Execution-Time" in response
+    assert response["X-Execution-Time"].endswith("ms")
+
+
+def test_middleware_no_longer_sets_mcp_attributes(middleware, rf):
+    """The removed MCP cargo-cult should leave no trace on requests/responses."""
+    request = rf.get("/", HTTP_X_MCP_SESSION="test-123")
+    response = middleware(request)
+
+    assert not hasattr(request, "is_mcp")
+    assert not hasattr(request, "mcp_session")
+    assert "X-MCP-Compatible" not in response

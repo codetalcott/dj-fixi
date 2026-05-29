@@ -1,14 +1,14 @@
-"""Tests for MCP integration features."""
+"""Tests for the JSON envelope, FxCRUDView validation, and test helpers."""
 
 import json
-import pytest
 from decimal import Decimal
-from django.test import TestCase
-from django.contrib.auth.models import User
 
-from dj_fixi.testing import FxTestClient, assert_mcp_response, assert_validation_error
+import pytest
+from django.test import TestCase
+
+from dj_fixi.mixins import JsonEnvelopeMixin
+from dj_fixi.testing import FxTestClient, assert_json_envelope, assert_validation_error
 from dj_fixi.views import FxCRUDView
-from dj_fixi.mixins import MCPResponseMixin
 
 
 # Mock model for testing
@@ -19,7 +19,7 @@ class MockProduct:
         'verbose_name': 'Product'
     })()
 
-    class DoesNotExist(Exception):
+    class DoesNotExist(Exception):  # noqa: N818 - mirrors Django's Model.DoesNotExist
         pass
 
     objects = type('Manager', (), {
@@ -45,17 +45,17 @@ class MockProduct:
 
 
 @pytest.mark.django_db
-class TestMCPResponseMixin(TestCase):
-    """Test MCPResponseMixin functionality."""
+class TestJsonEnvelopeMixin(TestCase):
+    """Test JsonEnvelopeMixin functionality."""
 
     def setUp(self):
         """Set up test fixtures."""
         self.client = FxTestClient()
 
-    def test_mcp_success_response_format(self):
-        """Test MCP success response has correct structure."""
-        mixin = MCPResponseMixin()
-        response = mixin.mcp_success_response(
+    def test_success_response_format(self):
+        """Test success response has correct structure."""
+        mixin = JsonEnvelopeMixin()
+        response = mixin.success_response(
             data={'id': 1, 'name': 'Test'},
             status=200
         )
@@ -67,10 +67,10 @@ class TestMCPResponseMixin(TestCase):
         assert 'timestamp' in data['meta']
         assert response.status_code == 200
 
-    def test_mcp_error_response_format(self):
-        """Test MCP error response has correct structure."""
-        mixin = MCPResponseMixin()
-        response = mixin.mcp_error_response(
+    def test_error_response_format(self):
+        """Test error response has correct structure."""
+        mixin = JsonEnvelopeMixin()
+        response = mixin.error_response(
             error='Validation failed',
             status=400,
             error_code='VALIDATION_ERROR'
@@ -83,10 +83,10 @@ class TestMCPResponseMixin(TestCase):
         assert 'meta' in data
         assert response.status_code == 400
 
-    def test_mcp_meta_with_extra_data(self):
-        """Test MCP response with extra metadata."""
-        mixin = MCPResponseMixin()
-        response = mixin.mcp_success_response(
+    def test_meta_with_extra_data(self):
+        """Test response with extra metadata."""
+        mixin = JsonEnvelopeMixin()
+        response = mixin.success_response(
             data={'id': 1},
             extra_meta={'updated_fields': ['name', 'price']}
         )
@@ -213,32 +213,6 @@ class TestFxCRUDViewAuditLog(TestCase):
         assert log_calls[0]['new'] == {'stock': 10}
 
 
-class TestFxMiddleware(TestCase):
-    """Test enhanced FxMiddleware."""
-
-    def setUp(self):
-        """Set up test client."""
-        self.client = FxTestClient()
-
-    @pytest.mark.urls('tests.test_urls')
-    def test_middleware_adds_execution_time(self):
-        """Test that middleware adds execution time header."""
-        # Would need actual URL config to test fully
-        # Just testing header format
-        response = self.client.get('/')
-        # In real tests with middleware, would check:
-        # assert 'X-Execution-Time' in response
-        # assert response['X-Execution-Time'].endswith('ms')
-
-    @pytest.mark.urls('tests.test_urls')
-    def test_middleware_detects_mcp_session(self):
-        """Test that middleware detects MCP session header."""
-        response = self.client.mcp_get('/', session_id='test-123')
-        # In real tests with middleware, would check:
-        # assert 'X-MCP-Compatible' in response
-        # assert response['X-MCP-Compatible'] == 'true'
-
-
 class TestFxTestClient(TestCase):
     """Test FxTestClient helper methods."""
 
@@ -248,25 +222,18 @@ class TestFxTestClient(TestCase):
 
     def test_fx_get_sets_headers(self):
         """Test fx_get sets correct headers."""
-        # Can't fully test without actual view, but verify method exists
+        # Can't fully test without actual view, but verify methods exist
         assert hasattr(self.client, 'fx_get')
         assert hasattr(self.client, 'fx_post')
         assert hasattr(self.client, 'fx_patch')
         assert hasattr(self.client, 'fx_delete')
 
-    def test_mcp_get_sets_headers(self):
-        """Test mcp_get sets correct headers."""
-        assert hasattr(self.client, 'mcp_get')
-        assert hasattr(self.client, 'mcp_post')
-        assert hasattr(self.client, 'mcp_patch')
-        assert hasattr(self.client, 'mcp_delete')
 
+class TestJsonEnvelopeAssertions(TestCase):
+    """Test JSON envelope assertion helpers."""
 
-class TestMCPResponseAssertions(TestCase):
-    """Test MCP response assertion helpers."""
-
-    def test_assert_mcp_response_success(self):
-        """Test assert_mcp_response with success response."""
+    def test_assert_json_envelope_success(self):
+        """Test assert_json_envelope with success response."""
         from django.http import JsonResponse
 
         response = JsonResponse({
@@ -275,12 +242,12 @@ class TestMCPResponseAssertions(TestCase):
             'meta': {'timestamp': '2024-01-01T00:00:00'}
         })
 
-        data = assert_mcp_response(response, success=True)
+        data = assert_json_envelope(response, success=True)
         assert data['success'] is True
         assert 'data' in data
 
-    def test_assert_mcp_response_error(self):
-        """Test assert_mcp_response with error response."""
+    def test_assert_json_envelope_error(self):
+        """Test assert_json_envelope with error response."""
         from django.http import JsonResponse
 
         response = JsonResponse({
@@ -290,7 +257,7 @@ class TestMCPResponseAssertions(TestCase):
             'meta': {'timestamp': '2024-01-01T00:00:00'}
         }, status=404)
 
-        data = assert_mcp_response(response, success=False)
+        data = assert_json_envelope(response, success=False)
         assert data['success'] is False
         assert 'error' in data
 
@@ -313,7 +280,7 @@ class TestMCPResponseAssertions(TestCase):
 
 
 class TestRealWorldIntegrationPattern(TestCase):
-    """Test patterns from real-world usage (like ExperimentalCourseCRUDView)."""
+    """Test patterns from real-world usage."""
 
     def test_validation_rules_pattern(self):
         """Test validation rules pattern used in production."""
@@ -366,7 +333,7 @@ class TestRealWorldIntegrationPattern(TestCase):
         assert not is_valid
         assert 'exceed' in error.lower()
 
-    def test_custom_mcp_meta_pattern(self):
+    def test_custom_envelope_meta_pattern(self):
         """Test custom metadata pattern from production."""
         class CourseView(FxCRUDView):
             model = MockProduct
@@ -374,8 +341,8 @@ class TestRealWorldIntegrationPattern(TestCase):
             editable_fields = ['price']
             searchable_fields = ['name']
 
-            def get_mcp_meta(self):
-                meta = super().get_mcp_meta()
+            def get_envelope_meta(self):
+                meta = super().get_envelope_meta()
                 meta.update({
                     'editable_fields': self.editable_fields,
                     'searchable_fields': self.searchable_fields,
@@ -383,7 +350,7 @@ class TestRealWorldIntegrationPattern(TestCase):
                 return meta
 
         view = CourseView()
-        meta = view.get_mcp_meta()
+        meta = view.get_envelope_meta()
 
         assert 'editable_fields' in meta
         assert 'searchable_fields' in meta

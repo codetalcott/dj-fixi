@@ -11,7 +11,7 @@ class FxMiddleware:
     """
     Detects Fixi.js requests and adds fixi-related attributes to request object.
 
-    Enhanced with timing and MCP support.
+    Also records per-request timing via the X-Execution-Time response header.
     """
 
     def __init__(self, get_response):
@@ -29,13 +29,6 @@ class FxMiddleware:
         request.fx_swap = request.headers.get("FX-Swap", "innerHTML")
         request.fx_trigger = request.headers.get("FX-Trigger")
 
-        # Add MCP context
-        if request.headers.get('X-MCP-Session'):
-            request.mcp_session = request.headers['X-MCP-Session']
-            request.is_mcp = True
-        else:
-            request.is_mcp = False
-
         # Process request
         response = self.get_response(request)
 
@@ -47,9 +40,5 @@ class FxMiddleware:
         # Add Fixi header to response for debugging
         if request.is_fx:
             response["X-FX-Response"] = "true"
-
-        # Add MCP headers
-        if hasattr(request, 'is_mcp') and request.is_mcp:
-            response['X-MCP-Compatible'] = 'true'
 
         return response

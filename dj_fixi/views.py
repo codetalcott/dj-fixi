@@ -4,15 +4,16 @@ Base views for Fixi.js integration with Django.
 Adapted from django_hypermedia.views.base
 """
 
+import json
+from typing import Any, Dict, List, Tuple
+
+from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
 from django.views import View
-from django.shortcuts import get_object_or_404
-from django.core.exceptions import FieldDoesNotExist, ValidationError
-from typing import Any, Dict, List, Tuple
-import json
 
-from .mixins import MCPResponseMixin
+from .mixins import JsonEnvelopeMixin
 
 
 class FxView(View):
@@ -41,7 +42,6 @@ class FxView(View):
 
     template_name = None
     partial_template = None
-    json_fields = None  # Fields to include in JSON response
 
     @property
     def is_fx(self):
@@ -103,27 +103,6 @@ class FxView(View):
             request=self.request, template=template_names, context=context, **response_kwargs
         )
 
-    def render_json(self, context=None, **response_kwargs):
-        """
-        Render JSON response.
-
-        Uses json_fields to filter context if specified.
-        """
-        if context is None:
-            context = self.get_context_data()
-
-        # Filter to specified fields or exclude Django internals
-        if self.json_fields:
-            data = {field: context.get(field) for field in self.json_fields}
-        else:
-            data = {
-                k: v
-                for k, v in context.items()
-                if not k.startswith("_") and k not in ["request", "user", "perms", "view"]
-            }
-
-        return JsonResponse(data, **response_kwargs)
-
 
 class FxTemplateView(FxView):
     """
@@ -143,7 +122,7 @@ class FxTemplateView(FxView):
         return self.render_to_response(context)
 
 
-class FxCRUDView(MCPResponseMixin, View):
+class FxCRUDView(JsonEnvelopeMixin, View):
     """
     Unified CRUD view optimized for FixiPlug table plugin.
 
@@ -297,10 +276,14 @@ class FxCRUDView(MCPResponseMixin, View):
         start = (page - 1) * limit
         end = start + limit
 
-        items = list(queryset[start:end])
+        # Keep the ordered slice as a queryset so callers can render it without
+        # re-querying (a pk__in re-query would drop the applied ordering).
+        page_queryset = queryset[start:end]
+        items = list(page_queryset)
 
         return {
             'items': items,
+            'queryset': page_queryset,
             'pagination': {
                 'page': page,
                 'limit': limit,
@@ -368,7 +351,7 @@ class FxCRUDView(MCPResponseMixin, View):
 
         paginated = self.get_paginated_data(queryset, request)
         table = ModelTable(
-            queryset=self.model.objects.filter(pk__in=[obj.pk for obj in paginated['items']]),
+            queryset=paginated['queryset'],
             fields=self.fields,
             editable_fields=self.editable_fields,
         )
@@ -384,14 +367,14 @@ class FxCRUDView(MCPResponseMixin, View):
         return HttpResponse(table.render())
 
     def post(self, request, *args, **kwargs):
-        """Create new record with validation and MCP response."""
+        """Create new record with validation and JSON envelope response."""
         try:
             data = json.loads(request.body)
 
             # Validate data
             is_valid, errors = self.validate_data(data)
             if not is_valid:
-                return self.mcp_error_response(
+                return self.error_response(
                     error="; ".join(errors),
                     status=400,
                     error_code='VALIDATION_ERROR'
@@ -405,26 +388,26 @@ class FxCRUDView(MCPResponseMixin, View):
 
             obj = self.model.objects.create(**create_data)
 
-            return self.mcp_success_response(
+            return self.success_response(
                 data=self.serialize_object(obj),
                 status=201,
                 extra_meta={'created_id': obj.pk}
             )
 
         except json.JSONDecodeError:
-            return self.mcp_error_response(
+            return self.error_response(
                 error="Invalid JSON",
                 status=400,
                 error_code='INVALID_JSON'
             )
         except ValidationError as e:
-            return self.mcp_error_response(
+            return self.error_response(
                 error=str(e),
                 status=422,
                 error_code='VALIDATION_ERROR'
             )
         except Exception as e:
-            return self.mcp_error_response(
+            return self.error_response(
                 error=str(e),
                 status=500,
                 error_code='INTERNAL_ERROR'
@@ -432,7 +415,7 @@ class FxCRUDView(MCPResponseMixin, View):
 
     def patch(self, request, pk=None, *args, **kwargs):
         """
-        Update record with validation and MCP response.
+        Update record with validation and JSON envelope response.
 
         - Inline edit: {id, column, value}
         - Full update: {id, field1: value1, field2: value2, ...}
@@ -451,7 +434,7 @@ class FxCRUDView(MCPResponseMixin, View):
 
                 # Validate field is editable
                 if field not in self.editable_fields:
-                    return self.mcp_error_response(
+                    return self.error_response(
                         error='Field not editable',
                         status=403,
                         error_code='FIELD_NOT_EDITABLE'
@@ -461,7 +444,7 @@ class FxCRUDView(MCPResponseMixin, View):
                 try:
                     self.model._meta.get_field(field)
                 except FieldDoesNotExist:
-                    return self.mcp_error_response(
+                    return self.error_response(
                         error='Invalid field',
                         status=400,
                         error_code='INVALID_FIELD'
@@ -470,7 +453,7 @@ class FxCRUDView(MCPResponseMixin, View):
                 # Validate field value
                 is_valid, error = self.validate_field(field, value)
                 if not is_valid:
-                    return self.mcp_error_response(
+                    return self.error_response(
                         error=error,
                         status=400,
                         error_code='VALIDATION_ERROR'
@@ -494,7 +477,7 @@ class FxCRUDView(MCPResponseMixin, View):
                         user=request.user
                     )
 
-                return self.mcp_success_response(
+                return self.success_response(
                     data={
                         'id': obj.pk,
                         'column': field,
@@ -510,7 +493,7 @@ class FxCRUDView(MCPResponseMixin, View):
                 # Validate all data
                 is_valid, errors = self.validate_data(data)
                 if not is_valid:
-                    return self.mcp_error_response(
+                    return self.error_response(
                         error="; ".join(errors),
                         status=400,
                         error_code='VALIDATION_ERROR'
@@ -543,38 +526,38 @@ class FxCRUDView(MCPResponseMixin, View):
                         user=request.user
                     )
 
-                return self.mcp_success_response(
+                return self.success_response(
                     data=self.serialize_object(obj),
                     extra_meta={'updated_fields': updated_fields}
                 )
 
         except self.model.DoesNotExist:
-            return self.mcp_error_response(
+            return self.error_response(
                 error="Object not found",
                 status=404,
                 error_code='NOT_FOUND'
             )
         except json.JSONDecodeError:
-            return self.mcp_error_response(
+            return self.error_response(
                 error="Invalid JSON",
                 status=400,
                 error_code='INVALID_JSON'
             )
         except ValidationError as e:
-            return self.mcp_error_response(
+            return self.error_response(
                 error=str(e),
                 status=422,
                 error_code='VALIDATION_ERROR'
             )
         except Exception as e:
-            return self.mcp_error_response(
+            return self.error_response(
                 error=str(e),
                 status=500,
                 error_code='INTERNAL_ERROR'
             )
 
     def delete(self, request, pk=None, *args, **kwargs):
-        """Delete record(s) with MCP response support."""
+        """Delete record(s) with JSON envelope response support."""
         try:
             data = json.loads(request.body) if request.body else {}
 
@@ -584,7 +567,7 @@ class FxCRUDView(MCPResponseMixin, View):
                 count = self.model.objects.filter(pk__in=ids).delete()[0]
 
                 if self.wants_json(request):
-                    return self.mcp_success_response(
+                    return self.success_response(
                         data={'deleted': count},
                         extra_meta={'operation': 'bulk_delete'}
                     )
@@ -596,28 +579,28 @@ class FxCRUDView(MCPResponseMixin, View):
             deleted_id = obj.pk
             obj.delete()
 
-            # Return MCP response for JSON requests, empty for HTML/Fixi
+            # Return JSON envelope for JSON requests, empty for HTML/Fixi
             if self.wants_json(request):
-                return self.mcp_success_response(
+                return self.success_response(
                     data={'deleted': deleted_id},
                     extra_meta={'operation': 'delete'}
                 )
             return HttpResponse('', status=200)  # Empty response for Fixi swap
 
         except self.model.DoesNotExist:
-            return self.mcp_error_response(
+            return self.error_response(
                 error="Object not found",
                 status=404,
                 error_code='NOT_FOUND'
             )
         except json.JSONDecodeError:
-            return self.mcp_error_response(
+            return self.error_response(
                 error="Invalid JSON",
                 status=400,
                 error_code='INVALID_JSON'
             )
         except Exception as e:
-            return self.mcp_error_response(
+            return self.error_response(
                 error=str(e),
                 status=500,
                 error_code='INTERNAL_ERROR'
