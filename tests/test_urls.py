@@ -1,4 +1,2 @@
-"""Test URLs"""
-from django.urls import path
-
+"""Test URLs (empty root URLConf for the test settings)."""
 urlpatterns = []

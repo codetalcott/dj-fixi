@@ -6,14 +6,10 @@ Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi) - a lig
 
 - 🎯 **Automatic Fixi Detection** - Middleware detects `FX-Request` headers
 - 🔄 **Smart Template Selection** - Serve fragments for Fixi requests, full pages otherwise
-- 🏗️ **View Mixins** - Drop-in enhancements for class-based views
-- 📊 **CRUD Renderers** - Field-type aware table rendering with inline editing
-- 🎨 **Template Tags** - Helpers for Fixi attributes and patterns
-- ✨ **Out-of-Band Updates** - Support for OOB swaps
-- 📦 **JSON Responses** - Standardized `{success, data, meta}` envelope from `FxCRUDView`
-- ✅ **Field Validation** - Declarative validation rules with type checking
-- 📝 **Audit Logging** - Optional change tracking for updates
-- 🧪 **Testing Utilities** - Test client with Fixi and MCP helpers
+- 🏗️ **View Mixins** - Drop-in enhancements for class-based views (`FxResponseMixin`, `ContextPersistenceMixin`, `OptimizedQueryMixin`)
+- 🎨 **Template Tags** - Helpers for Fixi attributes, CSRF, and the Fixi CDN
+- 📝 **Form Helpers** - `FxForm`/`FxModelForm` render Django forms with Fixi attributes
+- 🧪 **Testing Utilities** - Test client with Fixi request helpers
 
 ## Installation
 
@@ -91,70 +87,20 @@ Adapted from:
 - Attributes: `hx-get`, `hx-post`, `hx-target`, `hx-swap`
 - More complex features (history, indicators, etc.)
 
-## JSON Responses
+## Tables
 
-`FxCRUDView` returns a standardized JSON envelope, convenient for client-side
-consumers (such as a FixiPlug table) and any programmatic caller.
+`dj-fixi` deliberately stays small — it's the request/response/template adapter for
+Fixi. Declarative, inline-editable tables (server-rendered, with Fixi row swaps) live
+in a separate companion package, **[dj-fixi-tables](https://github.com/codetalcott/dj-fixi-tables)**,
+which builds on `dj-fixi`.
 
-```python
-from decimal import Decimal
-from dj_fixi.views import FxCRUDView
-
-
-def positive(value):
-    if value <= 0:
-        raise ValueError("Must be positive")
-
-
-class ProductCRUDView(FxCRUDView):
-    model = Product
-    fields = ['name', 'price', 'stock']
-    editable_fields = ['price', 'stock']
-
-    # Field validation
-    validation_rules = {
-        'price': {
-            'required': True,
-            'type': (int, float, Decimal),
-            'validator': positive,
-        }
-    }
-
-    # Audit logging
-    enable_audit_log = True
-
-    def log_change(self, obj, old_values, new_values, user):
-        AuditLog.objects.create(...)
-```
-
-All JSON responses follow this envelope:
-
-```json
-{
-  "success": true,
-  "data": {"id": 1, "name": "Product"},
-  "meta": {
-    "timestamp": "2024-01-01T00:00:00",
-    "view": "ProductCRUDView",
-    "model": "Product"
-  }
-}
-```
+> Earlier releases shipped two half-finished table systems (a server-rendered
+> `ModelTable` and a JSON `FxCRUDView` for a client plugin). Both were removed in favor
+> of the focused `dj-fixi-tables` package.
 
 ## Documentation
 
-- [docs/FX_CRUD_VIEW.md](docs/FX_CRUD_VIEW.md) - `FxCRUDView` guide
-- [docs/FUNCTIONAL_VIEWS.md](docs/FUNCTIONAL_VIEWS.md) - Function-based view patterns
-- [docs/INTEGRATION_PATTERNS.md](docs/INTEGRATION_PATTERNS.md) - Integration patterns
 - [CLAUDE.md](CLAUDE.md) - Development guide
-
-## Known limitations / follow-ups
-
-- **Two table-rendering paths exist.** `dj_fixi/tables.py` (`FxTable`/`ModelTable`)
-  renders server-side HTML and relies on URL-name conventions like
-  `reverse(f"{prefix}_update_field", ...)`, while `FxCRUDView` is a single JSON
-  endpoint intended for client-side rendering. A future change should pick one
-  canonical path and converge on it.
 
 ## License
 
