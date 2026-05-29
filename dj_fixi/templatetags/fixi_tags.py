@@ -5,30 +5,38 @@ Django template tags for Fixi.js integration.
 from django import template
 from django.forms.utils import flatatt
 from django.middleware.csrf import get_token
+from django.templatetags.static import static
+from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 register = template.Library()
 
 
 @register.simple_tag
-def fx_attrs(action=None, method="GET", target=None, swap="innerHTML", trigger="click", **kwargs):
+def fx_attrs(action=None, method="GET", target=None, swap="outerHTML", trigger="click", **kwargs):
     """
     Generate Fixi.js attributes for an element.
 
     Usage:
         {% fx_attrs action="/api/data" method="GET" target="#result" %}
-        {% fx_attrs action="/submit" method="POST" swap="outerHTML" %}
+        {% fx_attrs action="/submit" method="POST" swap="innerHTML" %}
 
     Args:
         action: URL for the Fixi action
         method: HTTP method (GET, POST, PUT, DELETE, PATCH)
         target: CSS selector for swap target
-        swap: Swap strategy (innerHTML, outerHTML, beforebegin, afterend)
+        swap: Swap strategy (outerHTML, innerHTML, beforebegin, afterend, ...)
         trigger: Event that triggers the action (click, change, submit, etc.)
         **kwargs: Additional attributes to add
 
     Returns:
         Safe string with Fixi attributes (values are HTML-escaped)
+
+    Note:
+        Fixi's own defaults are emitted-by-omission: GET method, ``click`` trigger,
+        and ``outerHTML`` swap. Passing those values renders nothing for them, since
+        Fixi already applies them when the attribute is absent. Pass a non-default
+        value (e.g. ``swap="innerHTML"``) to emit it explicitly.
     """
     attrs = {}
 
@@ -41,7 +49,8 @@ def fx_attrs(action=None, method="GET", target=None, swap="innerHTML", trigger="
     if target:
         attrs["fx-target"] = target
 
-    if swap and swap != "innerHTML":
+    # Fixi's default swap is outerHTML; only emit fx-swap when it differs.
+    if swap and swap != "outerHTML":
         attrs["fx-swap"] = swap
 
     if trigger and trigger != "click":
@@ -71,21 +80,55 @@ def fx_csrf_token(context):
     request = context.get("request")
     if request:
         token = get_token(request)
-        return mark_safe(f'<input type="hidden" name="csrfmiddlewaretoken" value="{token}">')
+        return format_html('<input type="hidden" name="csrfmiddlewaretoken" value="{}">', token)
     return ""
 
 
 @register.simple_tag
-def fixi_cdn(version="1.0.0"):
+def fixi_js():
     """
-    Include Fixi.js from CDN.
+    Include the vendored Fixi.js core from this package's static files.
+
+    Usage:
+        {% fixi_js %}
+
+    Requires ``django.contrib.staticfiles`` (or an equivalent static setup).
+    This serves the copy of fixi.js shipped with dj-fixi, matching Fixi's
+    "copy the file in" distribution model — no external CDN, version-pinned.
+    """
+    return format_html('<script src="{}"></script>', static("dj_fixi/fixi.js"))
+
+
+@register.simple_tag
+def fixi_events():
+    """
+    Include dj-fixi's optional FX-Trigger event bridge.
+
+    Usage:
+        {% fixi_js %}
+        {% fixi_events %}
+
+    Fixi core does not read response headers, so the ``FX-Trigger`` header set by
+    FxResponseMixin is inert without this (or an equivalent moxi ``on-fx:after``
+    handler). Load it *after* fixi.js.
+    """
+    return format_html('<script src="{}"></script>', static("dj_fixi/fixi-events.js"))
+
+
+@register.simple_tag
+def fixi_cdn(version="0.1.1"):
+    """
+    Include the Fixi Project bundle from a CDN.
+
+    .. deprecated::
+        Prefer ``{% fixi_js %}`` (vendored, offline, version-pinned). This tag is
+        kept for convenience and points at the real ``the-fixi-project`` package
+        (fixi + moxi + ssexi + paxi + rexi). The old ``unpkg.com/fixi@1.0.0`` URL
+        was wrong — that npm name is an unrelated, abandoned package.
 
     Usage:
         {% fixi_cdn %}
-        {% fixi_cdn version="1.0.1" %}
-
-    Returns:
-        Script tag for Fixi.js
+        {% fixi_cdn version="0.1.1" %}
     """
-    # Note: Update this URL when fixi.js gets published to a CDN
-    return mark_safe(f'<script src="https://unpkg.com/fixi@{version}/fixi.js"></script>')
+    url = f"https://unpkg.com/the-fixi-project@{version}/dist/the-fixi-project.js"
+    return format_html('<script src="{}"></script>', url)

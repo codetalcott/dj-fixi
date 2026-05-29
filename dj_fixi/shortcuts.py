@@ -54,7 +54,5 @@ def render_fx(request, fragment_template, page_template=None, context=None, **kw
 
     # Add Fixi context
     context.setdefault("is_fx", is_fx)
-    context.setdefault("fx_target", getattr(request, "fx_target", None))
-    context.setdefault("fx_swap", getattr(request, "fx_swap", "innerHTML"))
 
     return render(request, template, context, **kwargs)

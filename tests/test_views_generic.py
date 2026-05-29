@@ -22,12 +22,9 @@ def rf():
     return RequestFactory()
 
 
-def _request(rf, *, is_fx=False, target=None, swap="innerHTML"):
+def _request(rf, *, is_fx=False):
     request = rf.get("/")
     request.is_fx = is_fx
-    request.fx_target = target
-    request.fx_swap = swap
-    request.fx_trigger = None
     return request
 
 
@@ -55,9 +52,9 @@ def test_fxview_listview_preserves_listview_context(rf):
     assert ctx["paginator"] is not None
     assert ctx["page_obj"] is not None
     assert ctx["is_paginated"] is False
-    # Fx metadata layered on top
+    # Fx metadata layered on top (only is_fx; Fixi sends no target/swap headers)
     assert ctx["is_fx"] is False
-    assert ctx["fx_swap"] == "innerHTML"
+    assert "fx_swap" not in ctx
 
 
 @pytest.mark.django_db
@@ -73,7 +70,7 @@ def test_full_demo_mro_context_coexists(rf):
     Group.objects.create(name="a")
 
     view = V()
-    view.setup(_request(rf, is_fx=True, target="#c", swap="outerHTML"))
+    view.setup(_request(rf, is_fx=True))
     view.object_list = view.get_queryset()
     ctx = view.get_context_data(object_list=view.object_list)
 
@@ -83,8 +80,7 @@ def test_full_demo_mro_context_coexists(rf):
     assert "query_string" in ctx and "preserved_params" in ctx and "current_sort" in ctx
     # Fx metadata
     assert ctx["is_fx"] is True
-    assert ctx["fx_target"] == "#c"
-    assert ctx["fx_swap"] == "outerHTML"
+    assert "fx_target" not in ctx and "fx_swap" not in ctx
 
 
 @pytest.mark.django_db
@@ -111,13 +107,13 @@ def test_bare_fxview_builds_context_from_kwargs(rf):
         template_name = "x.html"
 
     view = V()
-    view.setup(_request(rf, is_fx=True, target="#c", swap="outerHTML"))
+    view.setup(_request(rf, is_fx=True))
     ctx = view.get_context_data(foo="bar")
 
     assert ctx["foo"] == "bar"
     assert ctx["view"] is view
     assert ctx["is_fx"] is True
-    assert ctx["fx_target"] == "#c"
+    assert "fx_target" not in ctx
 
 
 def test_get_template_names_raises_when_unconfigured(rf):

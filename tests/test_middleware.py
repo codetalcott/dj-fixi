@@ -38,11 +38,15 @@ def test_middleware_detects_non_fx_request(middleware, rf):
     assert "X-FX-Response" not in response
 
 
-def test_middleware_extracts_fx_headers(middleware, rf):
-    """Test that middleware extracts Fixi headers"""
+def test_middleware_does_not_set_target_swap_trigger(middleware, rf):
+    """Fixi.js never sends FX-Target/FX-Swap/FX-Trigger request headers (target
+    and swap are client-side concerns), so the middleware must not invent
+    request attributes for them. Only is_fx is real."""
     request = rf.get(
         "/",
         HTTP_FX_REQUEST="true",
+        # These headers are not part of Fixi's wire protocol; even if present
+        # they must be ignored rather than surfaced as request attributes.
         HTTP_FX_TARGET="#content",
         HTTP_FX_SWAP="outerHTML",
         HTTP_FX_TRIGGER="myButton",
@@ -50,31 +54,9 @@ def test_middleware_extracts_fx_headers(middleware, rf):
     middleware(request)
 
     assert request.is_fx is True
-    assert request.fx_target == "#content"
-    assert request.fx_swap == "outerHTML"
-    assert request.fx_trigger == "myButton"
-
-
-def test_middleware_sets_defaults_for_missing_headers(middleware, rf):
-    """Test that middleware sets defaults when headers are missing"""
-    request = rf.get("/", HTTP_FX_REQUEST="true")
-    middleware(request)
-
-    assert request.is_fx is True
-    assert request.fx_target is None
-    assert request.fx_swap == "innerHTML"
-    assert request.fx_trigger is None
-
-
-def test_middleware_handles_non_fx_request_attributes(middleware, rf):
-    """Test that non-Fixi requests get default attributes"""
-    request = rf.get("/")
-    middleware(request)
-
-    assert request.is_fx is False
-    assert request.fx_target is None
-    assert request.fx_swap == "innerHTML"
-    assert request.fx_trigger is None
+    assert not hasattr(request, "fx_target")
+    assert not hasattr(request, "fx_swap")
+    assert not hasattr(request, "fx_trigger")
 
 
 @override_settings(DEBUG=True)

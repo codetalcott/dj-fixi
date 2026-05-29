@@ -18,11 +18,18 @@
             <td>{{ product.stock }}</td>
             <td>{% if product.is_active %}Active{% else %}Inactive{% endif %}</td>
             <td>
-                <button {% fx_attrs action=product.get_absolute_url method="GET" target="#product-container" %}>
+                {# Edit: GET the edit form fragment into the list container. #}
+                <button {% fx_attrs action=product.get_absolute_url method="GET" target="#product-container" swap="innerHTML" %}>
                     Edit
                 </button>
+                {# Delete: POST (DeleteView routes POST -> form_valid); empty 204 body
+                   removes the row via the outerHTML swap. CSRF travels in the
+                   X-CSRFToken header added by the fx:config handler in list.html. #}
                 <button
-                    {% fx_attrs action=product.get_absolute_url method="DELETE" target="#product-"|add:product.id swap="outerHTML" %}
+                    fx-action="{% url 'product_delete' product.id %}"
+                    fx-method="POST"
+                    fx-target="#product-{{ product.id }}"
+                    fx-swap="outerHTML"
                     onclick="return confirm('Delete {{ product.name }}?')">
                     Delete
                 </button>
@@ -40,7 +47,7 @@
 <div class="pagination">
     {% if page_obj.has_previous %}
         <a href="?page={{ page_obj.previous_page_number }}&{{ query_string }}"
-           {% fx_attrs action="." target="#product-container" %}>
+           {% fx_attrs action="." target="#product-container" swap="innerHTML" %}>
             Previous
         </a>
     {% endif %}
@@ -49,7 +56,7 @@
 
     {% if page_obj.has_next %}
         <a href="?page={{ page_obj.next_page_number }}&{{ query_string }}"
-           {% fx_attrs action="." target="#product-container" %}>
+           {% fx_attrs action="." target="#product-container" swap="innerHTML" %}>
             Next
         </a>
     {% endif %}

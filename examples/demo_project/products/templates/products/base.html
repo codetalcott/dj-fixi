@@ -1,0 +1,39 @@
+{% load fixi_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}dj-fixi Demo{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    {# Vendored fixi.js core + the optional FX-Trigger event bridge (both ship with dj-fixi). #}
+    {% fixi_js %}
+    {% fixi_events %}
+</head>
+<body>
+    {# Render the CSRF token once so Django sets the csrftoken cookie for fixi requests. #}
+    {% csrf_token %}
+
+    {% block body %}{% endblock %}
+
+    <div id="toast" hidden style="position:fixed;bottom:1rem;right:1rem;padding:.75rem 1rem;border-radius:.5rem;background:#222;color:#fff"></div>
+
+    <script>
+        // Attach Django's CSRF token to every unsafe fixi request (POST/DELETE/...).
+        const csrftoken = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+        document.addEventListener("fx:config", (e) => {
+            if (csrftoken) e.detail.cfg.headers["X-CSRFToken"] = csrftoken;
+        });
+
+        // fixi-events.js turns the FX-Trigger response header into these CustomEvents.
+        const toast = (msg) => {
+            const el = document.getElementById("toast");
+            el.textContent = msg;
+            el.hidden = false;
+            setTimeout(() => { el.hidden = true; }, 2500);
+        };
+        document.addEventListener("formSuccess", (e) => toast(e.detail?.message || "Saved"));
+        document.addEventListener("formError", () => toast("Please fix the errors below"));
+    </script>
+</body>
+</html>

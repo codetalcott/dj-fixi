@@ -6,8 +6,11 @@ DEBUG = True
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
+    "django.contrib.staticfiles",
     "dj_fixi",
 ]
+
+STATIC_URL = "/static/"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

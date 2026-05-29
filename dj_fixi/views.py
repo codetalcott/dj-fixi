@@ -102,8 +102,9 @@ class FxView(View):
 
         Adds:
             - is_fx: Boolean indicating if this is a Fixi request
-            - fx_target: Target selector
-            - fx_swap: Swap strategy
+
+        Note: Fixi does not send target/swap in request headers (they are
+        client-side concerns), so no fx_target/fx_swap is exposed here.
         """
         parent = getattr(super(), "get_context_data", None)
         if callable(parent):
@@ -112,8 +113,6 @@ class FxView(View):
             context = {**kwargs}
             context.setdefault("view", self)
         context["is_fx"] = self.is_fx
-        context["fx_target"] = getattr(self.request, "fx_target", None)
-        context["fx_swap"] = getattr(self.request, "fx_swap", "innerHTML")
         return context
 
     def render_to_response(self, context=None, **response_kwargs):

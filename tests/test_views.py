@@ -22,9 +22,6 @@ def test_fx_view_detects_fx_request(rf):
 
     # Process through middleware-like setup
     request.is_fx = True
-    request.fx_target = None
-    request.fx_swap = "innerHTML"
-    request.fx_trigger = None
 
     # Would need actual templates to test rendering
     # Just verify dispatch works
@@ -43,9 +40,6 @@ def test_fx_view_template_selection_for_fx_request(rf):
 
     request = rf.get("/", HTTP_FX_REQUEST="true")
     request.is_fx = True
-    request.fx_target = None
-    request.fx_swap = "innerHTML"
-    request.fx_trigger = None
 
     view_instance = TestView()
     view_instance.setup(request)
@@ -65,9 +59,6 @@ def test_fx_view_template_fallback_with_suffix(rf):
 
     request = rf.get("/", HTTP_FX_REQUEST="true")
     request.is_fx = True
-    request.fx_target = None
-    request.fx_swap = "innerHTML"
-    request.fx_trigger = None
 
     view_instance = TestView()
     view_instance.setup(request)
@@ -80,16 +71,14 @@ def test_fx_view_template_fallback_with_suffix(rf):
 
 
 def test_fx_view_context_includes_fx_metadata(rf):
-    """Test that context includes Fixi metadata"""
+    """Context exposes is_fx (the one real Fixi signal) and nothing for the
+    target/swap headers Fixi never sends."""
 
     class TestView(FxView):
         template_name = "test.html"
 
     request = rf.get("/", HTTP_FX_REQUEST="true")
     request.is_fx = True
-    request.fx_target = "#content"
-    request.fx_swap = "outerHTML"
-    request.fx_trigger = "button"
 
     view_instance = TestView()
     view_instance.setup(request)
@@ -98,5 +87,5 @@ def test_fx_view_context_includes_fx_metadata(rf):
     context = view_instance.get_context_data()
 
     assert context["is_fx"] is True
-    assert context["fx_target"] == "#content"
-    assert context["fx_swap"] == "outerHTML"
+    assert "fx_target" not in context
+    assert "fx_swap" not in context

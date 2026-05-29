@@ -30,7 +30,7 @@ class FxForm:
         action: str,
         method: str = "POST",
         target: str | None = None,
-        swap: str = "innerHTML",
+        swap: str = "outerHTML",
         trigger: str = "submit",
         css_class: str = "fx-form",
         cancel_action: str | None = None,

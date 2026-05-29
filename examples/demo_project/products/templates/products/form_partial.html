@@ -1,0 +1,12 @@
+{% load fixi_tags %}
+{# Fragment served to Fixi requests (create/update). The form has no fx-target, so
+   Fixi targets the form element itself and replaces it (outerHTML default) with the
+   response — re-rendered with errors on 422, or with the saved instance on success. #}
+<form {% fx_attrs action=request.path method="POST" %}>
+    {% fx_csrf_token %}
+    {{ form.as_p }}
+    <div class="form-actions">
+        <button type="submit">Save</button>
+        <a href="{% url 'product_list' %}">Cancel</a>
+    </div>
+</form>

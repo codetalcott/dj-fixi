@@ -1,0 +1,8 @@
+{# Fragment served to Fixi requests by product_list_simple via render_fx(). #}
+<ul>
+    {% for product in products %}
+    <li>{{ product.name }} — ${{ product.price }}</li>
+    {% empty %}
+    <li>No products found.</li>
+    {% endfor %}
+</ul>

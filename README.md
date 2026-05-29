@@ -7,7 +7,7 @@ Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi) - a lig
 - 🎯 **Automatic Fixi Detection** - Middleware detects `FX-Request` headers
 - 🔄 **Smart Template Selection** - Serve fragments for Fixi requests, full pages otherwise
 - 🏗️ **View Mixins** - Drop-in enhancements for class-based views (`FxResponseMixin`, `ContextPersistenceMixin`, `OptimizedQueryMixin`)
-- 🎨 **Template Tags** - Helpers for Fixi attributes, CSRF, and the Fixi CDN
+- 🎨 **Template Tags** - Helpers for Fixi attributes, CSRF, and loading the (vendored) Fixi.js
 - 📝 **Form Helpers** - `FxForm`/`FxModelForm` render Django forms with Fixi attributes
 - 🧪 **Testing Utilities** - Test client with Fixi request helpers
 
@@ -49,10 +49,12 @@ class ProductListView(FxView):
 
 ```django
 {# products/list.html - Full page #}
+{% load fixi_tags %}
 <!DOCTYPE html>
 <html>
 <head>
-    <script src="https://unpkg.com/fixi@1.0.0/fixi.js"></script>
+    {% fixi_js %}      {# serves the fixi.js vendored with dj-fixi (needs staticfiles) #}
+    {% fixi_events %}  {# optional: enables FX-Trigger events (see below) #}
 </head>
 <body>
     <div id="product-list">
@@ -77,15 +79,35 @@ Adapted from:
 
 ### Key Differences: HTMX vs Fixi
 
-**Fixi** uses:
-- Request header: `FX-Request: true`
-- Attributes: `fx-action`, `fx-method`, `fx-target`, `fx-swap`, `fx-trigger`
-- Custom events: `fx:init`, `fx:before`, `fx:after`, `fx:swapped`
+**Fixi** is deliberately minimal, and this matters for what the server can assume:
+- Request header: it sends **only** `FX-Request: true` (plus anything you add via
+  `window.fixiCfg.headers`). It does **not** send target/swap/trigger headers — those are
+  client-side concerns — so `request.is_fx` is the one signal `FxMiddleware` sets.
+- Attributes: `fx-action`, `fx-method`, `fx-target`, `fx-swap`, `fx-trigger`.
+- Default swap is **`outerHTML`** (HTMX defaults to `innerHTML`). `{% fx_attrs %}` follows
+  Fixi here: it omits `fx-swap` for `outerHTML` and emits it for anything else.
+- Events: `fx:init`, `fx:config`, `fx:before`, `fx:after`, `fx:swapped`, etc. Fixi core
+  reads **no response headers** (see "Client-side events" below).
 
-**HTMX** uses:
-- Request header: `HX-Request: true`
-- Attributes: `hx-get`, `hx-post`, `hx-target`, `hx-swap`
-- More complex features (history, indicators, etc.)
+**HTMX** sends `HX-Request`/`HX-Target`/…, reads response headers (`HX-Trigger`,
+`HX-Retarget`, …), and ships history/indicators/OOB swaps. If you want that richer
+server-driven protocol, use HTMX with [django-htmx](https://django-htmx.readthedocs.io)
+rather than expecting Fixi to behave the same way.
+
+## Client-side events (FX-Trigger)
+
+`FxResponseMixin` sets an `FX-Trigger` response header on form success/error (e.g.
+`{"formSuccess": {"object_id": "7"}}`). **Fixi core does not read response headers**, so
+this header does nothing on its own. Enable it one of two ways:
+
+- **Shipped shim (zero-config):** add `{% fixi_events %}` after `{% fixi_js %}`. It adds a
+  small `fx:after` listener that turns the header into a bubbling `CustomEvent`, which you
+  listen for with `document.addEventListener("formSuccess", (e) => …)`.
+- **moxi.js:** if you already use [moxi](https://fixiproject.org), write the equivalent
+  `on-fx:after` handler that reads `evt.detail.cfg.response.headers.get('FX-Trigger')`.
+
+Unsafe Fixi requests (POST/DELETE/…) still need a CSRF token; attach it per request via an
+`fx:config` listener setting the `X-CSRFToken` header (see the demo's `base.html`).
 
 ## Tables
 

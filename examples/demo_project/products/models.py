@@ -1,6 +1,7 @@
 """Product models for demo app"""
 
 from django.db import models
+from django.urls import reverse
 
 
 class Product(models.Model):
@@ -19,3 +20,7 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+    def get_absolute_url(self):
+        """Canonical edit URL (the demo has no standalone detail view)."""
+        return reverse("product_update", args=[self.pk])

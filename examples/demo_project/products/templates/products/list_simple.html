@@ -1,0 +1,20 @@
+{% extends "products/base.html" %}
+{% load fixi_tags %}
+
+{% block title %}Products (simple) - dj-fixi Demo{% endblock %}
+
+{% block body %}
+    <header>
+        <h1>dj-fixi Demo - Simple List</h1>
+        <p>Function-based view using the <code>render_fx()</code> shortcut.</p>
+    </header>
+
+    <form {% fx_attrs action="." method="GET" target="#product-list" swap="innerHTML" %}>
+        <input type="search" name="q" placeholder="Search products..." value="{{ request.GET.q }}">
+        <button type="submit">Search</button>
+    </form>
+
+    <div id="product-list">
+        {% include "products/list_simple_partial.html" %}
+    </div>
+{% endblock %}

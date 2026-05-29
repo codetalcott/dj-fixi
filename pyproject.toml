@@ -1,6 +1,6 @@
 [project]
 name = "dj-fixi"
-version = "0.1.0"
+version = "0.2.0"
 description = "Django integration for Fixi.js - server-side rendering with hypermedia"
 authors = [{name = "William Talcott"}]
 readme = "README.md"

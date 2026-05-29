@@ -23,13 +23,10 @@ class FxMiddleware:
         # Add timing
         request._fx_start_time = time.time()
 
-        # Detect Fixi request
+        # Detect Fixi request. Fixi.js sends exactly one custom request header
+        # (``FX-Request: true``); it does not send target/swap/trigger headers
+        # (those are client-side concerns), so there is nothing else to extract.
         request.is_fx = request.headers.get("FX-Request") == "true"
-
-        # Extract Fixi headers
-        request.fx_target = request.headers.get("FX-Target")
-        request.fx_swap = request.headers.get("FX-Swap", "innerHTML")
-        request.fx_trigger = request.headers.get("FX-Trigger")
 
         # Process request
         response = self.get_response(request)

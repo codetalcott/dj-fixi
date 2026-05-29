@@ -1,0 +1,15 @@
+{% extends "products/base.html" %}
+
+{% block title %}Delete {{ object }} - dj-fixi Demo{% endblock %}
+
+{% block body %}
+    <h1>Delete product</h1>
+    <p>Are you sure you want to delete <strong>{{ object.name }}</strong>?</p>
+
+    {# Plain (non-Fixi) confirmation: a normal POST that redirects to the list. #}
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit">Confirm delete</button>
+        <a href="{% url 'product_list' %}">Cancel</a>
+    </form>
+{% endblock %}
