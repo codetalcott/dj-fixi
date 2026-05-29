@@ -1,4 +1,5 @@
 """Tests for shortcut functions"""
+
 import pytest
 from django.test import RequestFactory
 

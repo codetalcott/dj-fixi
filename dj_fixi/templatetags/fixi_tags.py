@@ -4,6 +4,7 @@ Django template tags for Fixi.js integration.
 
 from django import template
 from django.forms.utils import flatatt
+from django.middleware.csrf import get_token
 from django.utils.safestring import mark_safe
 
 register = template.Library()
@@ -67,8 +68,6 @@ def fx_csrf_token(context):
             ...
         </form>
     """
-    from django.middleware.csrf import get_token
-
     request = context.get("request")
     if request:
         token = get_token(request)

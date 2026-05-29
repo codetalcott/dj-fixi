@@ -1,4 +1,5 @@
 """Tests for template tags"""
+
 import pytest
 from django.template import Context, Template
 from django.test import RequestFactory
@@ -44,14 +45,16 @@ def test_fx_attrs_with_swap():
 
 def test_fx_attrs_omits_defaults():
     """Test that fx_attrs omits default values"""
-    template = Template("{% load fixi_tags %}{% fx_attrs action='/test' method='GET' swap='innerHTML' trigger='click' %}")
+    template = Template(
+        "{% load fixi_tags %}{% fx_attrs action='/test' method='GET' swap='innerHTML' trigger='click' %}"
+    )
     rendered = template.render(Context({}))
 
     # Should only have action since others are defaults
     assert 'fx-action="/test"' in rendered
-    assert 'fx-method' not in rendered
-    assert 'fx-swap' not in rendered
-    assert 'fx-trigger' not in rendered
+    assert "fx-method" not in rendered
+    assert "fx-swap" not in rendered
+    assert "fx-trigger" not in rendered
 
 
 def test_fx_csrf_token(rf):
@@ -69,5 +72,5 @@ def test_fixi_cdn():
     template = Template("{% load fixi_tags %}{% fixi_cdn %}")
     rendered = template.render(Context({}))
 
-    assert '<script' in rendered
-    assert 'fixi' in rendered.lower()
+    assert "<script" in rendered
+    assert "fixi" in rendered.lower()

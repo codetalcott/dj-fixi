@@ -6,6 +6,8 @@ Adapted from django_hypermedia.middleware.negotiation
 
 import time
 
+from django.conf import settings
+
 
 class FxMiddleware:
     """
@@ -32,10 +34,10 @@ class FxMiddleware:
         # Process request
         response = self.get_response(request)
 
-        # Add execution time
-        if hasattr(request, '_fx_start_time'):
+        # Add execution time (debug only, to avoid leaking timing in production)
+        if settings.DEBUG:
             execution_time = (time.time() - request._fx_start_time) * 1000
-            response['X-Execution-Time'] = f"{execution_time:.2f}ms"
+            response["X-Execution-Time"] = f"{execution_time:.2f}ms"
 
         # Add Fixi header to response for debugging
         if request.is_fx:
