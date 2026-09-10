@@ -4,6 +4,7 @@ Django CBV mixins for Fixi.js integration.
 Simplified to include only essential, non-opinionated mixins.
 """
 
+import inspect
 import json
 import logging
 from typing import Any
@@ -12,6 +13,7 @@ from urllib.parse import urlencode
 from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured
 from django.db import models
 from django.http import HttpResponse
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from .request import is_fx as _is_fx
 
@@ -164,6 +166,24 @@ class FxResponseMixin:
     #: their bound values are the object's current state.
     fx_reset_form_after_create: bool = True
 
+    #: The collection this view's fragment displays. A create view's success
+    #: fragment almost always shows the list the new object just joined, but
+    #: ``ModelFormMixin`` has no ``object_list``, so every project re-queried the
+    #: list view's queryset by hand in ``get_context_data``. Accepts a queryset,
+    #: a manager, or a callable taking the view.
+    fx_collection: Any = None
+
+    #: Context name for :attr:`fx_collection`. Defaults to the model's
+    #: ``model_name_list``, matching what ``ListView`` would produce.
+    fx_collection_name: str | None = None
+
+    #: Where a non-Fixi POST redirects when neither ``success_url`` nor the
+    #: object's ``get_absolute_url()`` supplies one. Falls back to the page the
+    #: form was submitted from, which for a fragment-driven page is the list the
+    #: user is already looking at. Set to ``False`` to restore Django's
+    #: ``ImproperlyConfigured``.
+    fx_default_success_url: str | bool | None = None
+
     def get_template_names(self) -> list[str]:
         """
         Return fragment templates for Fixi requests.
@@ -284,6 +304,79 @@ class FxResponseMixin:
                 getattr(get_form_class(), "__name__", "form"),
             )
             return form
+
+    def get_fx_collection(self):
+        """
+        Resolve :attr:`fx_collection` to something a template can iterate.
+
+        Returns ``None`` when the view does not declare one, which leaves the
+        context exactly as it was.
+        """
+        # getattr_static, not getattr: a plain function assigned as a class
+        # attribute would otherwise bind as a method and be handed ``self``
+        # twice. Four of six implementations hit this and wrapped it in
+        # staticmethod to get around it.
+        collection = inspect.getattr_static(self, "fx_collection", None)
+        if isinstance(collection, (staticmethod, classmethod)):
+            collection = collection.__func__
+        if collection is None:
+            return None
+        if hasattr(collection, "all"):
+            # Both a manager and a queryset. Cloning a class-level queryset is
+            # the point: returned as-is it keeps its result cache for the life of
+            # the process and serves the first request's rows forever.
+            return collection.all()
+        if callable(collection):
+            return collection(self)
+        return collection
+
+    def get_fx_collection_name(self) -> str:
+        """Context key for the collection. Mirrors ListView's default name."""
+        if self.fx_collection_name:
+            return self.fx_collection_name
+        model = getattr(self, "model", None)
+        if model is None:
+            queryset = getattr(self, "queryset", None)
+            model = getattr(queryset, "model", None)
+        if model is not None:
+            return f"{model._meta.model_name}_list"
+        return "object_list"
+
+    def get_context_data(self, **kwargs) -> dict[str, Any]:
+        """Add the declared collection so a form view's fragment can render it."""
+        context = super().get_context_data(**kwargs)
+        collection = self.get_fx_collection()
+        if collection is not None:
+            context.setdefault(self.get_fx_collection_name(), collection)
+            context.setdefault("object_list", collection)
+        return context
+
+    def get_success_url(self) -> str:
+        """
+        Django's success URL, with a fallback so Fixi-only views need not invent one.
+
+        ``ModelFormMixin`` requires ``success_url`` or ``get_absolute_url()`` even
+        on a view whose Fixi path discards the redirect entirely. Six of six
+        implementations declared one purely to satisfy that. When neither is
+        present the referring page is used, which is where a fragment-driven form
+        was submitted from.
+        """
+        try:
+            return super().get_success_url()
+        except ImproperlyConfigured:
+            if self.fx_default_success_url is False:
+                raise
+            url = self.fx_default_success_url
+            if url:
+                return str(url)
+            referer = self.request.META.get("HTTP_REFERER")
+            if referer and url_has_allowed_host_and_scheme(
+                referer,
+                allowed_hosts={self.request.get_host()},
+                require_https=self.request.is_secure(),
+            ):
+                return referer
+            raise
 
     def form_invalid(self, form) -> HttpResponse:
         """Handle form validation errors for Fixi requests."""

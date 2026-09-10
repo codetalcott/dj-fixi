@@ -11,6 +11,7 @@ import json
 import pytest
 from django import forms
 from django.contrib.auth.models import Group
+from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory, override_settings
 from django.views.generic import CreateView, DeleteView, ListView, TemplateView
 
@@ -26,7 +27,10 @@ LOCMEM_TEMPLATES = [
                     "django.template.loaders.locmem.Loader",
                     {
                         "g/form.html": "FULL {{ object.name }}",
-                        "g/form_partial.html": "PARTIAL {{ object.name }}",
+                        "g/form_partial.html": (
+                            "PARTIAL {{ object.name }}"
+                            "[{% for g in group_list %}{{ g.name }},{% endfor %}]"
+                        ),
                     },
                 )
             ],
@@ -248,3 +252,247 @@ def test_optimized_query_applies_prefetch(rf):
     qs = view.get_queryset()
 
     assert qs._prefetch_related_lookups == ("permissions",)
+
+
+# --------------------------------------------------------------------------- #
+# FxResponseMixin.fx_collection -- the collection a form view's fragment shows
+# --------------------------------------------------------------------------- #
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_fx_collection_reaches_the_success_fragment(rf):
+    """A create view's fragment shows the list the object just joined.
+
+    Six of six independent implementations wrote this by hand in
+    get_context_data, because ModelFormMixin has no object_list.
+    """
+    Group.objects.create(name="existing")
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        success_url = "/done/"
+        fx_collection = Group.objects.all()
+
+    view = V()
+    view.setup(_fx(rf.post("/", {"name": "new"})))
+    view.object = None
+    form = view.get_form()
+    assert form.is_valid()
+
+    response = view.form_valid(form)
+    response.render()
+
+    body = response.content.decode()
+    assert "existing," in body
+    assert "new," in body, "the just-created object must be in the rendered collection"
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_fx_collection_accepts_a_manager_and_a_callable(rf):
+    Group.objects.create(name="one")
+
+    class Managed(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_collection = Group.objects
+
+    class Called(Managed):
+        fx_collection = staticmethod(lambda view: Group.objects.filter(name="one"))
+
+    for cls in (Managed, Called):
+        view = cls()
+        view.setup(_fx(rf.get("/")))
+        view.object = None
+        names = [g.name for g in view.get_context_data(form=view.get_form())["group_list"]]
+        assert "one" in names
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_fx_collection_name_defaults_to_the_listview_convention(rf):
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_collection = Group.objects.all()
+
+    view = V()
+    view.setup(_fx(rf.get("/")))
+    view.object = None
+    context = view.get_context_data(form=view.get_form())
+    assert "group_list" in context
+    assert "object_list" in context
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_no_fx_collection_leaves_context_untouched(rf):
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+
+    view = V()
+    view.setup(_fx(rf.get("/")))
+    view.object = None
+    context = view.get_context_data(form=view.get_form())
+    assert "group_list" not in context
+    assert "object_list" not in context
+
+
+# --------------------------------------------------------------------------- #
+# FxResponseMixin.get_success_url -- optional on a path that discards it
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+def test_success_url_falls_back_to_the_referring_page(rf):
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+
+    view = V()
+    view.setup(rf.post("/add/", {"name": "x"}, HTTP_REFERER="http://testserver/notes/"))
+    view.object = None
+    assert view.get_success_url() == "http://testserver/notes/"
+
+
+@pytest.mark.django_db
+def test_success_url_prefers_an_explicit_default_over_the_referer(rf):
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_default_success_url = "/elsewhere/"
+
+    view = V()
+    view.setup(rf.post("/add/", {"name": "x"}, HTTP_REFERER="http://testserver/notes/"))
+    view.object = None
+    assert view.get_success_url() == "/elsewhere/"
+
+
+@pytest.mark.django_db
+def test_success_url_still_wins_when_set(rf):
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        success_url = "/explicit/"
+
+    view = V()
+    view.setup(rf.post("/add/", {"name": "x"}, HTTP_REFERER="http://testserver/notes/"))
+    view.object = Group.objects.create(name="saved")
+    assert view.get_success_url() == "/explicit/"
+
+
+@pytest.mark.django_db
+def test_an_offsite_referer_is_refused(rf):
+    """A redirect target taken from a header is an open-redirect if unchecked."""
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+
+    view = V()
+    view.setup(rf.post("/add/", {"name": "x"}, HTTP_REFERER="https://evil.example/x"))
+    view.object = None
+    with pytest.raises(ImproperlyConfigured):
+        view.get_success_url()
+
+
+@pytest.mark.django_db
+def test_the_fallback_can_be_switched_off(rf):
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_default_success_url = False
+
+    view = V()
+    view.setup(rf.post("/add/", {"name": "x"}, HTTP_REFERER="http://testserver/notes/"))
+    view.object = None
+    with pytest.raises(ImproperlyConfigured):
+        view.get_success_url()
+
+
+@pytest.mark.django_db
+def test_no_referer_and_no_url_still_raises(rf):
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+
+    view = V()
+    view.setup(rf.post("/add/", {"name": "x"}))
+    view.object = None
+    with pytest.raises(ImproperlyConfigured):
+        view.get_success_url()
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_fx_collection_clones_a_class_level_queryset(rf):
+    """A queryset on the class keeps its result cache for the life of the process.
+
+    Returned as-is it serves the first request's rows forever. Four of six
+    implementations worked this out from the source and passed a manager instead.
+    """
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_collection = Group.objects.all()
+
+    view = V()
+    view.setup(_fx(rf.get("/")))
+
+    Group.objects.create(name="first")
+    assert [g.name for g in view.get_fx_collection()] == ["first"]
+    Group.objects.create(name="second")
+    names = [g.name for g in view.get_fx_collection()]
+    assert "second" in names, "a stale result cache was served"
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_fx_collection_accepts_a_plain_function(rf):
+    """A bare function on the class must not bind as a method and take self twice."""
+
+    def newest(view):
+        return Group.objects.order_by("-pk")
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_collection = newest
+
+    Group.objects.create(name="only")
+    view = V()
+    view.setup(_fx(rf.get("/")))
+    assert [g.name for g in view.get_fx_collection()] == ["only"]
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_fx_collection_still_accepts_staticmethod(rf):
+    """The shape implementations reached for when the plain function failed."""
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_collection = staticmethod(lambda view: Group.objects.all())
+
+    Group.objects.create(name="only")
+    view = V()
+    view.setup(_fx(rf.get("/")))
+    assert [g.name for g in view.get_fx_collection()] == ["only"]
