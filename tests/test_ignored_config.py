@@ -6,6 +6,8 @@ value, documented it, and then dropped it -- so the caller got no error and no
 effect. These assert the value is now honored, or that a wrong one is loud.
 """
 
+import logging
+
 import pytest
 from django import forms
 from django.contrib.auth.models import Group, Permission
@@ -316,3 +318,94 @@ def test_non_fixi_requests_are_untouched(rf):
     view = V()
     view.request = rf.get("/")
     assert "notes/_panel.html" not in view.get_template_names()
+
+
+# --------------------------------------------------------------------------- #
+# All six agents in the generation evaluation independently wrote the same
+# workaround: substituting a fresh unbound form after a successful create,
+# because the mixin re-rendered the bound one and echoed back what was just
+# saved. Six of six converging on a workaround is a missing feature.
+# --------------------------------------------------------------------------- #
+
+
+def _create_view(**attrs):
+    from django.views.generic import CreateView
+
+    return type(
+        "V",
+        (FxResponseMixin, CreateView),
+        {
+            "model": Group,
+            "form_class": _GroupForm,
+            "template_name": "g/form.html",
+            **attrs,
+        },
+    )
+
+
+@pytest.mark.django_db
+def test_create_returns_a_blank_form(rf, settings):
+    settings.TEMPLATES = LOCMEM_TEMPLATES
+    view = _create_view()()
+    view.request = rf.post("/", {"name": "fresh"}, HTTP_FX_REQUEST="true")
+    view.object = None
+    form = _GroupForm({"name": "fresh"})
+    assert form.is_valid()
+
+    response = view.form_valid(form)
+
+    assert response.context_data["form"].is_bound is False
+    assert Group.objects.filter(name="fresh").exists()
+
+
+@pytest.mark.django_db
+def test_update_keeps_the_bound_form(rf, settings):
+    """An update's values are the object's current state, so they must stay."""
+    settings.TEMPLATES = LOCMEM_TEMPLATES
+    existing = Group.objects.create(name="before")
+
+    view = _create_view()()
+    view.request = rf.post("/", {"name": "after"}, HTTP_FX_REQUEST="true")
+    view.object = existing
+    form = _GroupForm({"name": "after"}, instance=existing)
+    assert form.is_valid()
+
+    response = view.form_valid(form)
+
+    assert response.context_data["form"].is_bound is True
+    assert response.context_data["form"].data["name"] == "after"
+
+
+@pytest.mark.django_db
+def test_reset_can_be_switched_off(rf, settings):
+    settings.TEMPLATES = LOCMEM_TEMPLATES
+    view = _create_view(fx_reset_form_after_create=False)()
+    view.request = rf.post("/", {"name": "kept"}, HTTP_FX_REQUEST="true")
+    view.object = None
+    form = _GroupForm({"name": "kept"})
+    assert form.is_valid()
+
+    assert view.form_valid(form).context_data["form"].is_bound is True
+
+
+@pytest.mark.django_db
+def test_a_form_needing_constructor_args_falls_back_loudly(rf, settings, caplog):
+    """A save that already committed must not fail; it warns and keeps the form."""
+    settings.TEMPLATES = LOCMEM_TEMPLATES
+
+    class NeedsArgs(_GroupForm):
+        def __init__(self, *args, required_arg, **kwargs):
+            super().__init__(*args, **kwargs)
+
+    view = _create_view()()
+    view.get_form_class = lambda: NeedsArgs
+    view.request = rf.post("/", {"name": "args"}, HTTP_FX_REQUEST="true")
+    view.object = None
+    form = _GroupForm({"name": "args"})
+    assert form.is_valid()
+
+    with caplog.at_level(logging.WARNING):
+        response = view.form_valid(form)
+
+    assert response.context_data["form"] is form
+    assert "get_fx_success_form" in caplog.text

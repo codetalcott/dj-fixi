@@ -158,6 +158,12 @@ class FxResponseMixin:
     fx_success_event: str = "formSuccess"
     fx_error_event: str = "formError"
 
+    #: After a successful *create*, render a fresh unbound form rather than the
+    #: bound one. Without this the fragment echoes back the values just saved,
+    #: into a form the user is about to type into again. Updates are unaffected:
+    #: their bound values are the object's current state.
+    fx_reset_form_after_create: bool = True
+
     def get_template_names(self) -> list[str]:
         """
         Return fragment templates for Fixi requests.
@@ -240,7 +246,8 @@ class FxResponseMixin:
         if obj_pk is not None:
             # Create/update: hand back the rendered fragment for swapping in.
             detail["object_id"] = str(obj_pk)
-            fx_response = self.render_to_response(self.get_context_data(form=form))
+            rendered_form = self.get_fx_success_form(form, created=pk_before is None)
+            fx_response = self.render_to_response(self.get_context_data(form=rendered_form))
         else:
             # Delete (or no object to render): nothing to swap.
             if pk_before is not None:
@@ -249,6 +256,34 @@ class FxResponseMixin:
 
         self._trigger_fx_event(fx_response, self.fx_success_event, detail)
         return fx_response
+
+    def get_fx_success_form(self, form, created: bool):
+        """
+        The form to render back into the fragment after a successful save.
+
+        Returns a fresh unbound form for a create (see
+        ``fx_reset_form_after_create``) and the bound form for an update.
+        Override for anything more specific -- a form whose constructor needs
+        arguments, for instance.
+        """
+        if not created or not self.fx_reset_form_after_create:
+            return form
+
+        get_form_class = getattr(self, "get_form_class", None)
+        if not callable(get_form_class):
+            return form
+        try:
+            return get_form_class()()
+        except TypeError:
+            # The form needs constructor arguments we cannot guess. Keep the
+            # bound form rather than failing a save that already committed.
+            logger.warning(
+                "%s could not build an unbound %s to reset the form after "
+                "create; override get_fx_success_form() to control this.",
+                type(self).__name__,
+                getattr(get_form_class(), "__name__", "form"),
+            )
+            return form
 
     def form_invalid(self, form) -> HttpResponse:
         """Handle form validation errors for Fixi requests."""

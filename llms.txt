@@ -95,7 +95,9 @@ Always sets `Vary: FX-Request`.
 `form_valid` renders the fragment and sets an `FX-Trigger` header (or returns 204
 for a delete, so the row can be removed by the swap); `form_invalid` returns
 **422** with the fragment. Non-Fixi requests keep Django's redirect. Configure
-with `fx_success_event`, `fx_error_event`, `fx_template_suffix`.
+with `fx_success_event`, `fx_error_event`, `fx_template_suffix`,
+`fx_reset_form_after_create`. Composed with `FxView`, an explicit
+`partial_template` outranks every name this mixin derives by convention.
 
 `ContextPersistenceMixin` — filtering and sorting from the query string. Set
 `filterset_class` (django-filter) or `filterset_fields` (a list of concrete field
@@ -178,9 +180,10 @@ fixed.
 - **`fx:after` fires BEFORE the swap.** The `{% fixi_events %}` shim listens
   there, so a handler for a `FX-Trigger` event cannot see the swapped-in DOM.
   Use `fx:swapped` for anything that touches the new nodes.
-- **A successful create still re-renders the bound form**, so the inputs echo
-  back what was just submitted. Override `get_context_data` to substitute a
-  fresh unbound form when `self.object` is set, if you want the form cleared.
+- **A successful create returns a blank form; an update keeps its values.**
+  You do not need to reset the form yourself. Switch it off with
+  `fx_reset_form_after_create = False`, or override `get_fx_success_form(form,
+  created)` when the form's constructor needs arguments.
 - **`success_url` is still required for the browser path.** `form_valid`
   delegates to Django, which builds a redirect. Since 0.3.0 the Fixi path no
   longer fails when that redirect cannot be built, but a non-Fixi POST to the
