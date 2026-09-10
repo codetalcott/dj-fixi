@@ -12,11 +12,12 @@ from .mixins import (
 )
 from .request import is_fx
 from .shortcuts import render_fx
-from .views import FxView
+from .views import FxTemplateView, FxView
 
 __all__ = [
     "FxMiddleware",
     "FxView",
+    "FxTemplateView",
     "FxResponseMixin",
     "ContextPersistenceMixin",
     "OptimizedQueryMixin",

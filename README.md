@@ -158,6 +158,24 @@ with function-based views triggers none of them. Silence any individually:
 SILENCED_SYSTEM_CHECKS = ["dj_fixi.W202"]
 ```
 
+### Running them under pytest
+
+Django runs system checks on `runserver`, on `migrate`, and inside its own test
+runner — but **not** under pytest, which is what most Django projects use. Add
+this one test so your suite catches these too:
+
+```python
+from dj_fixi.testing import assert_no_fixi_check_issues
+
+def test_dj_fixi_is_configured_correctly():
+    assert_no_fixi_check_issues()
+```
+
+The failure output carries each message and its hint verbatim, so it says what to
+change rather than just that something is wrong. `fixi_check_messages()` returns
+the same messages if you want to inspect them, and both honor
+`SILENCED_SYSTEM_CHECKS`.
+
 **Why `E101` exists.** Django's generic view mixins do not call `super()` in
 `get_template_names` or `get_context_data`, so anything listed after them in the
 MRO is dead code. `class V(ListView, FxView)` still renders, still returns `200`,
@@ -182,6 +200,8 @@ which builds on `dj-fixi`.
 
 ## Documentation
 
+- [llms.txt](llms.txt) - Complete API reference in one file, written for coding
+  agents. Point your agent at it and it should not need to read the source.
 - [CLAUDE.md](CLAUDE.md) - Development guide
 
 ## License

@@ -62,6 +62,17 @@ never in dj-fixi's own code.
   `routed_view_classes`, `RoutedView`), public API. It never raises: a broken
   URLconf yields fewer results, leaving Django's own `urls.E00x` to report it.
 - **`dj_fixi.request`** — `is_fx()`, `vary_on_fx()`, `FX_REQUEST_HEADER`.
+- **`assert_no_fixi_check_issues()` / `fixi_check_messages()`** in
+  `dj_fixi.testing`. Django runs system checks on `runserver`, `migrate`, and in
+  its own test runner, but **not** under pytest — so for most Django projects the
+  checks were invisible in the workflow where a wrong answer is cheapest to
+  catch. One line in your suite closes that gap. Both honor
+  `SILENCED_SYSTEM_CHECKS`.
+- **`llms.txt`** — the complete API in one file, written for coding agents:
+  the base-ordering rule, what Fixi deliberately does not do, every check ID, and
+  how to verify. Pinned against drift by `tests/test_llms_txt.py`, because stale
+  docs are a silent failure aimed at exactly the reader this project cares about.
+- **`FxTemplateView` is now exported** from `dj_fixi` directly.
 
 ### Behavior changes to be aware of
 
@@ -71,7 +82,7 @@ never in dj-fixi's own code.
   view that set them and relied on them being ignored will change behavior.
 - `{% fx_csrf_token %}` raises outside a request context instead of returning "".
 
-Tests: 45 → 146.
+Tests: 45 → 173. Verified on Python 3.10–3.13 and Django 4.2–6.0.
 
 ## 0.2.0 — protocol correctness
 
