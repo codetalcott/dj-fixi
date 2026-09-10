@@ -34,11 +34,23 @@ def hooks(*bases):
         ((ListView, FxView), ["get_context_data", "get_template_names"]),
         (
             (CreateView, FxResponseMixin),
-            ["form_invalid", "form_valid", "get_template_names"],
+            [
+                "form_invalid",
+                "form_valid",
+                "get_context_data",
+                "get_success_url",
+                "get_template_names",
+            ],
         ),
         (
             (DeleteView, FxResponseMixin),
-            ["form_invalid", "form_valid", "get_template_names"],
+            [
+                "form_invalid",
+                "form_valid",
+                "get_context_data",
+                "get_success_url",
+                "get_template_names",
+            ],
         ),
         ((ListView, ContextPersistenceMixin), ["get_context_data", "get_queryset"]),
         ((FxView, ListView, OptimizedQueryMixin), ["get_queryset"]),

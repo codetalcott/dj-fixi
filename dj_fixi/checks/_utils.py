@@ -23,6 +23,11 @@ COOPERATIVE_HOOKS = (
     "get_queryset",
     "form_valid",
     "form_invalid",
+    # FxResponseMixin.get_success_url falls back when Django raises
+    # ImproperlyConfigured. Behind ModelFormMixin, which does not call super(),
+    # that fallback is dead and the view raises again -- silently, in the sense
+    # that the base order is what caused it.
+    "get_success_url",
 )
 
 
