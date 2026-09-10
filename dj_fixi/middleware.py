@@ -8,6 +8,8 @@ import time
 
 from django.conf import settings
 
+from .request import FX_REQUEST_HEADER, vary_on_fx
+
 
 class FxMiddleware:
     """
@@ -26,7 +28,7 @@ class FxMiddleware:
         # Detect Fixi request. Fixi.js sends exactly one custom request header
         # (``FX-Request: true``); it does not send target/swap/trigger headers
         # (those are client-side concerns), so there is nothing else to extract.
-        request.is_fx = request.headers.get("FX-Request") == "true"
+        request.is_fx = request.headers.get(FX_REQUEST_HEADER) == "true"
 
         # Process request
         response = self.get_response(request)
@@ -40,4 +42,7 @@ class FxMiddleware:
         if request.is_fx:
             response["X-FX-Response"] = "true"
 
-        return response
+        # Unconditional: a *full-page* response from an Fx-aware URL must also
+        # declare that it varies, or a shared cache will serve it into a swap
+        # target on the next Fixi request.
+        return vary_on_fx(response)

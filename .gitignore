@@ -49,3 +49,6 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Claude Code (machine-local permissions; settings.json is shared)
+.claude/settings.local.json

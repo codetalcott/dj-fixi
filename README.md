@@ -10,6 +10,7 @@ Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi) - a lig
 - 🎨 **Template Tags** - Helpers for Fixi attributes, CSRF, and loading the (vendored) Fixi.js
 - 📝 **Form Helpers** - `FxForm`/`FxModelForm` render Django forms with Fixi attributes
 - 🧪 **Testing Utilities** - Test client with Fixi request helpers
+- 🚨 **System Checks** - `manage.py check` catches the misconfigurations that would otherwise fail silently (see [System checks](#system-checks))
 
 ## Installation
 
@@ -19,31 +20,49 @@ pip install dj-fixi
 
 ## Quick Start
 
-### 1. Add middleware
+### 1. Install the app (and, optionally, the middleware)
 
 ```python
 # settings.py
+INSTALLED_APPS = [
+    ...
+    'dj_fixi',
+]
+
 MIDDLEWARE = [
     ...
-    'dj_fixi.middleware.FxMiddleware',
+    'dj_fixi.middleware.FxMiddleware',   # optional since 0.3.0
 ]
 ```
+
+`dj_fixi` in `INSTALLED_APPS` is required: it is what serves the vendored
+`fixi.js`, registers the template tags, and runs the system checks.
+
+The middleware is **optional as of 0.3.0**. dj-fixi reads the `FX-Request` header
+directly, so fragment selection works without it. Add it anyway if you want
+`request.is_fx` in your own view code, or `Vary: FX-Request` on responses dj-fixi
+does not build itself.
 
 ### 2. Use FxView or mixins
 
 ```python
 # views.py
+from django.views.generic import ListView
+
 from dj_fixi.views import FxView
 
-class ProductListView(FxView):
+class ProductListView(FxView, ListView):
+    model = Product
+    context_object_name = 'products'
     template_name = 'products/list.html'
     partial_template = 'products/list_partial.html'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['products'] = Product.objects.all()
-        return context
 ```
+
+Two things the checks will hold you to. **dj-fixi classes come first** in the base
+list, because Django's generic mixins do not call `super()` in the hooks dj-fixi
+overrides. And `FxView` supplies **no HTTP handlers** — compose it with a generic
+view as above, or subclass `FxTemplateView`, which provides `get()`. A subclass
+with neither answers `405` forever.
 
 ### 3. Create templates
 
@@ -82,7 +101,8 @@ Adapted from:
 **Fixi** is deliberately minimal, and this matters for what the server can assume:
 - Request header: it sends **only** `FX-Request: true` (plus anything you add via
   `window.fixiCfg.headers`). It does **not** send target/swap/trigger headers — those are
-  client-side concerns — so `request.is_fx` is the one signal `FxMiddleware` sets.
+  client-side concerns — so that one header is the only signal the server gets. Read it
+  with `dj_fixi.is_fx(request)`, which works with or without `FxMiddleware`.
 - Attributes: `fx-action`, `fx-method`, `fx-target`, `fx-swap`, `fx-trigger`.
 - Default swap is **`outerHTML`** (HTMX defaults to `innerHTML`). `{% fx_attrs %}` follows
   Fixi here: it omits `fx-swap` for `outerHTML` and emits it for anything else.
@@ -108,6 +128,46 @@ this header does nothing on its own. Enable it one of two ways:
 
 Unsafe Fixi requests (POST/DELETE/…) still need a CSRF token; attach it per request via an
 `fx:config` listener setting the `X-CSRFToken` header (see the demo's `base.html`).
+
+## System checks
+
+dj-fixi's failure modes were almost all silent: a wrong base-class order, a
+typo'd template name, or a forgotten setting produced a `200` with the wrong body
+and no exception anywhere. Most of those root causes are gone as of 0.3.0. What
+remains lives in your project's settings, URLconf, or filesystem, where the
+library cannot fix it — so `manage.py check` reports it at startup instead.
+
+| ID | Level | Fires when |
+|---|---|---|
+| `dj_fixi.E101` | Error | A Django class earlier in the MRO shadows a dj-fixi hook, e.g. `class V(ListView, FxView)` |
+| `dj_fixi.W102` | Warning | Same, but your own class is the one that does not call `super()` |
+| `dj_fixi.E103` | Error | A routed `FxView` subclass defines no HTTP handler, so it answers `405` forever |
+| `dj_fixi.E104` | Error | A routed `FxView` subclass has no way to name a template |
+| `dj_fixi.W001` | Warning | `FxMiddleware` is not installed (advisory) |
+| `dj_fixi.W002` | Warning | No template engine enables `context_processors.request` |
+| `dj_fixi.W201` | Warning | A declared `template_name`/`partial_template` resolves to nothing |
+| `dj_fixi.W202` | Warning | Fixi requests to a view can only ever render the full page |
+| `dj_fixi.E301` | Error | `staticfiles` is installed but `fixi.js` is unfindable |
+| `dj_fixi.W302` | Warning | `django.contrib.staticfiles` is not installed |
+
+Checks only inspect views reachable from your URLconf, and stay silent on a
+project that is not using the feature in question — a `render_fx`-only project
+with function-based views triggers none of them. Silence any individually:
+
+```python
+SILENCED_SYSTEM_CHECKS = ["dj_fixi.W202"]
+```
+
+**Why `E101` exists.** Django's generic view mixins do not call `super()` in
+`get_template_names` or `get_context_data`, so anything listed after them in the
+MRO is dead code. `class V(ListView, FxView)` still renders, still returns `200`,
+and silently serves the full page to every Fixi request with `is_fx` missing from
+the context. Put dj-fixi classes first:
+
+```python
+class ProductListView(FxView, ListView):   # correct
+class ProductListView(ListView, FxView):   # dj_fixi.E101
+```
 
 ## Tables
 

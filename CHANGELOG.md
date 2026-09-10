@@ -1,5 +1,78 @@
 # Changelog
 
+## 0.3.0 — silent failures
+
+An audit catalogued 47 configurations that produced wrong behavior with no
+exception, no log line, and a 200 response. This release removes the root cause
+of as many as possible, and makes most of the rest fail at startup.
+
+The order of preference applied throughout: **delete the dependency** so the
+wrong state cannot happen, else **fail loudly at the earliest deterministic
+moment**, else **check at boot**, else document. A system check is only correct
+when the defect lives in the *project's* settings, URLconf, or filesystem —
+never in dj-fixi's own code.
+
+### Fixed — these failure modes no longer exist
+
+- **`FxMiddleware` is now optional.** Every call site read
+  `getattr(request, "is_fx", False)`, so a forgotten middleware entry meant
+  `is_fx` was False forever: full HTML pages served into swap targets, 302s that
+  fixi followed, and 200s where a 422 was expected. Detection now reads the
+  `FX-Request` header directly via the new `dj_fixi.is_fx()`. An explicitly set
+  `request.is_fx` still wins, so the middleware and `FxTestClient` are unchanged.
+- **`Vary: FX-Request` is now set** by the middleware, `FxView.render_to_response`,
+  and `render_fx`. Without it, any URL that returns a fragment or a full page for
+  the same path is a cache-poisoning bug that appears only behind a proxy.
+- **`ContextPersistenceMixin.filterset_fields` actually filters.** It was
+  documented and gated a branch, then discarded by `get_filterset`. A name that
+  is not a field on the model now raises `ImproperlyConfigured` instead of
+  quietly filtering nothing. New `filter_queryset()` hook; no new dependency.
+- **Related-field sorts work.** `?sort=category__name` was validated with
+  `_meta.get_field()`, which rejects `__` paths, so a valid sort was logged and
+  dropped. Segments are now walked.
+- **`FxForm`'s `cancel_action` is honored.** It was accepted, stored, documented,
+  and then ignored in favor of a hardcoded `fx-action=""` — which fixi resolves
+  to the *current URL*, so cancelling swapped the whole document into the target.
+  `FxForm` also accepts an optional `request` and emits the CSRF input for unsafe
+  methods.
+- **`{% fx_csrf_token %}` works with no context-processor configuration.** It read
+  `context["request"]` and returned `""` when absent, so the form rendered looking
+  correct and every POST came back 403. It now reads `csrf_token` from the context
+  the way Django's own tag does, and raises rather than returning empty.
+- **`{% fx_attrs %}` normalizes swap case.** fixi dispatches swaps
+  case-sensitively, so `swap="outerhtml"` reached fixi's `throw` and nothing
+  swapped while the server returned 200. Unknown values now raise
+  `TemplateSyntaxError`. `swap="morph"` is accepted for paxi.js.
+- **`FxView.render_to_response` honors `response_class`, `content_type`, and
+  `template_engine`.** They were previously ignored, with a docstring saying so.
+- **`FxResponseMixin.get_success_message` no longer requires `self.model`.** On a
+  `FormView` it raised `AttributeError` on the *success* path only.
+
+### Added
+
+- **Django system checks** (`dj_fixi.E101`, `W102`, `E103`, `E104`, `W001`,
+  `W002`, `W201`, `W202`, `E301`, `W302`). The one that justifies the rest is
+  **E101**: `class V(ListView, FxView)` silently disables partial-template
+  selection and drops `is_fx` from the context while still returning 200. Checks
+  never fire on a project that is not using the feature, and only routed views are
+  inspected. Silence any with `SILENCED_SYSTEM_CHECKS`.
+- **`dj_fixi.apps.DjFixiConfig`**, auto-discovered by `INSTALLED_APPS = ["dj_fixi"]`.
+  Nothing about how you list the app changes.
+- **`dj_fixi.urlconf`** — a defensive URLconf walk (`iter_routed_views`,
+  `routed_view_classes`, `RoutedView`), public API. It never raises: a broken
+  URLconf yields fewer results, leaving Django's own `urls.E00x` to report it.
+- **`dj_fixi.request`** — `is_fx()`, `vary_on_fx()`, `FX_REQUEST_HEADER`.
+
+### Behavior changes to be aware of
+
+- `{% fx_attrs %}` raises on a swap value fixi does not recognize, where it
+  previously emitted it and let the swap silently fail in the browser.
+- `FxView.render_to_response` now respects `content_type`/`response_class`, so a
+  view that set them and relied on them being ignored will change behavior.
+- `{% fx_csrf_token %}` raises outside a request context instead of returning "".
+
+Tests: 45 → 146.
+
 ## 0.2.0 — protocol correctness
 
 This release realigns dj-fixi with what **Fixi.js actually does on the wire** (verified

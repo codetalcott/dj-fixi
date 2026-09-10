@@ -9,9 +9,11 @@ import logging
 from typing import Any
 from urllib.parse import urlencode
 
-from django.core.exceptions import FieldDoesNotExist
+from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured
 from django.db import models
 from django.http import HttpResponse
+
+from .request import is_fx as _is_fx
 
 logger = logging.getLogger(__name__)
 
@@ -40,23 +42,26 @@ class ContextPersistenceMixin:
         queryset = super().get_queryset()
 
         # Apply filtering
-        if self.filterset_class or self.filterset_fields:
+        if self.filterset_class:
             filterset = self.get_filterset(queryset)
             if filterset is not None:
                 queryset = filterset.qs
                 self.filterset = filterset
+        elif self.filterset_fields:
+            queryset = self.filter_queryset(queryset)
 
         # Apply sorting with validation
         sort_param = self.request.GET.get("sort", "")
         if sort_param:
-            # Validate the sort field against the queryset's model, which is
-            # always available even when the view sets ``queryset`` not ``model``.
-            field_name = sort_param.lstrip("-")
-            try:
-                queryset.model._meta.get_field(field_name)
+            # Validate against the queryset's model, which is always available
+            # even when the view sets ``queryset`` rather than ``model``. Sort
+            # values come from the query string, so an unknown one is ignored
+            # rather than raised -- but a *valid* related-field sort such as
+            # ``category__name`` must work, which means walking the segments.
+            if self._is_sortable(queryset.model, sort_param.lstrip("-")):
                 queryset = queryset.order_by(sort_param)
-            except FieldDoesNotExist:
-                logger.warning(f"Invalid sort field: {field_name}")
+            else:
+                logger.warning("Invalid sort field: %s", sort_param.lstrip("-"))
 
         return queryset
 
@@ -65,6 +70,54 @@ class ContextPersistenceMixin:
         if self.filterset_class:
             return self.filterset_class(self.request.GET, queryset=queryset, request=self.request)
         return None
+
+    def filter_queryset(self, queryset: models.QuerySet) -> models.QuerySet:
+        """
+        Apply ``filterset_fields`` from ``request.GET``, without a filter library.
+
+        Each declared name is checked against the model up front, so a typo in
+        ``filterset_fields`` raises ImproperlyConfigured instead of quietly
+        filtering nothing. Values absent from the query string are skipped, so
+        this is a no-op until the user actually filters.
+
+        Only exact matches on concrete fields are supported. For lookups
+        (``price__gte``), relations, or custom widgets, set ``filterset_class``.
+        """
+        lookups = {}
+        for field_name in self.filterset_fields:
+            if "__" in field_name:
+                raise ImproperlyConfigured(
+                    f"{type(self).__name__}.filterset_fields contains "
+                    f"{field_name!r}, but filterset_fields only supports exact "
+                    "matches on concrete fields. Use filterset_class for lookups."
+                )
+            try:
+                queryset.model._meta.get_field(field_name)
+            except FieldDoesNotExist as exc:
+                raise ImproperlyConfigured(
+                    f"{type(self).__name__}.filterset_fields contains "
+                    f"{field_name!r}, which is not a field on "
+                    f"{queryset.model.__name__}."
+                ) from exc
+
+            value = self.request.GET.get(field_name)
+            if value:
+                lookups[field_name] = value
+
+        return queryset.filter(**lookups) if lookups else queryset
+
+    @staticmethod
+    def _is_sortable(model: type[models.Model], path: str) -> bool:
+        """True when ``path`` (possibly ``a__b__c``) resolves to a field."""
+        for segment in path.split("__"):
+            if model is None:
+                return False
+            try:
+                field = model._meta.get_field(segment)
+            except FieldDoesNotExist:
+                return False
+            model = field.related_model
+        return True
 
     def get_context_data(self, **kwargs) -> dict[str, Any]:
         """Add preserved parameters to context."""
@@ -107,7 +160,7 @@ class FxResponseMixin:
 
     def get_template_names(self) -> list[str]:
         """Return fragment templates for Fixi requests."""
-        if getattr(self.request, "is_fx", False):
+        if _is_fx(self.request):
             original_templates = super().get_template_names()
             fx_templates = []
 
@@ -150,7 +203,7 @@ class FxResponseMixin:
 
         response = super().form_valid(form)
 
-        if not getattr(self.request, "is_fx", False):
+        if not _is_fx(self.request):
             return response
 
         detail = {"message": self.get_success_message()}
@@ -172,7 +225,7 @@ class FxResponseMixin:
 
     def form_invalid(self, form) -> HttpResponse:
         """Handle form validation errors for Fixi requests."""
-        if getattr(self.request, "is_fx", False):
+        if _is_fx(self.request):
             context = self.get_context_data(form=form)
             response = self.render_to_response(context)
             response.status_code = 422
@@ -187,8 +240,21 @@ class FxResponseMixin:
         return super().form_invalid(form)
 
     def get_success_message(self) -> str:
-        """Generate success message for the operation."""
-        return f"{self.model._meta.verbose_name.title()} saved successfully"
+        """
+        Generate a success message for the operation.
+
+        Falls back to the saved object's own class, then to a generic message:
+        a FormView composed with this mixin has no ``model``, and reading it
+        blindly raised AttributeError on the *success* path only.
+        """
+        model = getattr(self, "model", None)
+        if model is None:
+            obj = getattr(self, "object", None)
+            model = type(obj) if obj is not None else None
+        meta = getattr(model, "_meta", None)
+        if meta is not None:
+            return f"{meta.verbose_name.title()} saved successfully"
+        return "Saved successfully"
 
     def _trigger_fx_event(
         self, response: HttpResponse, event_name: str, detail: dict | None = None

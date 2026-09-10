@@ -4,6 +4,9 @@ Shortcut functions for Fixi.js integration with Django.
 
 from django.shortcuts import render
 
+from .request import is_fx as _is_fx
+from .request import vary_on_fx
+
 
 def render_fx(request, fragment_template, page_template=None, context=None, **kwargs):
     """
@@ -45,7 +48,7 @@ def render_fx(request, fragment_template, page_template=None, context=None, **kw
         context = {}
 
     # Determine which template to use
-    is_fx = getattr(request, "is_fx", False)
+    is_fx = _is_fx(request)
 
     if is_fx or page_template is None:
         template = fragment_template
@@ -55,4 +58,4 @@ def render_fx(request, fragment_template, page_template=None, context=None, **kw
     # Add Fixi context
     context.setdefault("is_fx", is_fx)
 
-    return render(request, template, context, **kwargs)
+    return vary_on_fx(render(request, template, context, **kwargs))

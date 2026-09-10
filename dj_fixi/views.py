@@ -8,6 +8,9 @@ from django.core.exceptions import ImproperlyConfigured
 from django.template.response import TemplateResponse
 from django.views import View
 
+from .request import is_fx as _is_fx
+from .request import vary_on_fx
+
 
 class FxView(View):
     """
@@ -22,24 +25,34 @@ class FxView(View):
         partial_template: Fragment template for Fixi requests (optional)
         context_data: Additional context for templates
 
-    Example:
-        class ProductListView(FxView):
-            template_name = 'products/list.html'
-            partial_template = 'products/_list_partial.html'
+    FxView supplies no HTTP handlers of its own -- it is a base class. Compose it
+    with a Django generic view (which brings ``get``/``post``), or subclass
+    ``FxTemplateView``, which supplies ``get``. A subclass with neither answers
+    every request with 405 Method Not Allowed.
 
-            def get_context_data(self, **kwargs):
-                context = super().get_context_data(**kwargs)
-                context['products'] = Product.objects.all()
-                return context
+    Example:
+        class ProductListView(FxView, ListView):
+            model = Product
+            template_name = 'products/list.html'
+            partial_template = 'products/list_partial.html'
+
+    Note the base order: dj-fixi classes come *first*. Django's generic view
+    mixins do not call ``super()`` in ``get_template_names``/``get_context_data``,
+    so anything listed after them in the MRO never runs.
     """
 
     template_name = None
     partial_template = None
 
+    # Mirrors TemplateResponseMixin so a standalone FxView honors these too.
+    response_class = TemplateResponse
+    content_type = None
+    template_engine = None
+
     @property
     def is_fx(self):
         """Check if current request is a Fixi request."""
-        return getattr(self.request, "is_fx", False)
+        return _is_fx(self.request)
 
     def get_template_names(self):
         """
@@ -119,21 +132,28 @@ class FxView(View):
         """
         Render template with context.
 
-        Kept intentionally self-contained rather than delegating to Django's
-        ``TemplateResponseMixin.render_to_response``: the signatures differ
-        (``context`` is required there) and delegating would re-run
-        ``get_template_names`` and ignore ``response_class``/``content_type``/
-        ``template_engine``. As a result those generic-view attributes are not
-        honored here; pass ``response_kwargs`` if you need to override them.
+        Kept self-contained rather than delegating to Django's
+        ``TemplateResponseMixin.render_to_response`` because the signatures differ
+        (``context`` is required there), but it honors the same
+        ``response_class``/``content_type``/``template_engine`` attributes.
+
+        The response always varies on ``FX-Request``: this view returns a fragment
+        or a full page for the same URL depending on that header, so a shared cache
+        must not treat the two as interchangeable.
         """
         if context is None:
             context = self.get_context_data()
 
-        template_names = self.get_template_names()
+        response_kwargs.setdefault("content_type", self.content_type)
 
-        return TemplateResponse(
-            request=self.request, template=template_names, context=context, **response_kwargs
+        response = self.response_class(
+            request=self.request,
+            template=self.get_template_names(),
+            context=context,
+            using=self.template_engine,
+            **response_kwargs,
         )
+        return vary_on_fx(response)
 
 
 class FxTemplateView(FxView):

@@ -3,6 +3,7 @@ Django template tags for Fixi.js integration.
 """
 
 from django import template
+from django.core.exceptions import ImproperlyConfigured
 from django.forms.utils import flatatt
 from django.middleware.csrf import get_token
 from django.templatetags.static import static
@@ -10,6 +11,23 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 register = template.Library()
+
+# Fixi dispatches swaps case-sensitively: the adjacent positions go through a
+# lowercase regex, and everything else is looked up as a property on the target
+# element ("outerhtml" is not a property, so fixi throws and nothing swaps).
+# Map the case-insensitive spelling to the one fixi actually recognizes.
+SWAP_VALUES = {
+    "innerhtml": "innerHTML",
+    "outerhtml": "outerHTML",
+    "textcontent": "textContent",
+    "innertext": "innerText",
+    "beforebegin": "beforebegin",
+    "afterbegin": "afterbegin",
+    "beforeend": "beforeend",
+    "afterend": "afterend",
+    "none": "none",
+    "morph": "morph",  # provided by paxi.js
+}
 
 
 @register.simple_tag
@@ -50,8 +68,10 @@ def fx_attrs(action=None, method="GET", target=None, swap="outerHTML", trigger="
         attrs["fx-target"] = target
 
     # Fixi's default swap is outerHTML; only emit fx-swap when it differs.
-    if swap and swap != "outerHTML":
-        attrs["fx-swap"] = swap
+    if swap:
+        swap = normalize_swap(swap)
+        if swap != "outerHTML":
+            attrs["fx-swap"] = swap
 
     if trigger and trigger != "click":
         attrs["fx-trigger"] = trigger
@@ -66,6 +86,25 @@ def fx_attrs(action=None, method="GET", target=None, swap="outerHTML", trigger="
     return mark_safe(flatatt(attrs).lstrip())
 
 
+def normalize_swap(swap):
+    """
+    Return the spelling of ``swap`` that fixi.js recognizes.
+
+    Raises TemplateSyntaxError for an unrecognized value rather than emitting it:
+    fixi throws on an unknown swap, so the request succeeds, the server returns
+    200, and nothing in the page changes.
+    """
+    canonical = SWAP_VALUES.get(str(swap).lower())
+    if canonical is None:
+        raise template.TemplateSyntaxError(
+            f"{{% fx_attrs %}} got swap={swap!r}, which fixi.js does not recognize. "
+            f"Valid values: {', '.join(sorted(set(SWAP_VALUES.values())))}. "
+            "To target an arbitrary element property, write the fx-swap "
+            "attribute directly instead of using this tag."
+        )
+    return canonical
+
+
 @register.simple_tag(takes_context=True)
 def fx_csrf_token(context):
     """
@@ -76,12 +115,29 @@ def fx_csrf_token(context):
             {% fx_csrf_token %}
             ...
         </form>
+
+    Reads ``csrf_token`` straight from the context the way Django's own
+    ``{% csrf_token %}`` does. ``django.template.context_processors.csrf`` is a
+    *builtin*, applied to every RequestContext, so this needs no context-processor
+    configuration. Previously this returned an empty string whenever
+    ``context["request"]`` was absent, so the form rendered looking correct and
+    every POST came back 403.
     """
-    request = context.get("request")
-    if request:
+    token = context.get("csrf_token")
+    if not token:
+        # Fall back to the request, then refuse: a POST form with no token is
+        # never correct, and a 500 naming the cause beats a silent 403.
+        request = context.get("request")
+        if request is None:
+            raise ImproperlyConfigured(
+                "{% fx_csrf_token %} found no CSRF token in the template context. "
+                "Render this template with a RequestContext (django.shortcuts.render, "
+                "TemplateResponse, or a generic view) so the token is available."
+            )
         token = get_token(request)
-        return format_html('<input type="hidden" name="csrfmiddlewaretoken" value="{}">', token)
-    return ""
+    if token == "NOTPROVIDED":
+        return ""
+    return format_html('<input type="hidden" name="csrfmiddlewaretoken" value="{}">', token)
 
 
 @register.simple_tag
