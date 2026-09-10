@@ -4,6 +4,7 @@ Django CBV mixins for Fixi.js integration.
 Simplified to include only essential, non-opinionated mixins.
 """
 
+import inspect
 import json
 import logging
 from typing import Any
@@ -311,13 +312,22 @@ class FxResponseMixin:
         Returns ``None`` when the view does not declare one, which leaves the
         context exactly as it was.
         """
-        collection = self.fx_collection
+        # getattr_static, not getattr: a plain function assigned as a class
+        # attribute would otherwise bind as a method and be handed ``self``
+        # twice. Four of six implementations hit this and wrapped it in
+        # staticmethod to get around it.
+        collection = inspect.getattr_static(self, "fx_collection", None)
+        if isinstance(collection, (staticmethod, classmethod)):
+            collection = collection.__func__
         if collection is None:
             return None
-        if callable(collection) and not hasattr(collection, "all"):
+        if hasattr(collection, "all"):
+            # Both a manager and a queryset. Cloning a class-level queryset is
+            # the point: returned as-is it keeps its result cache for the life of
+            # the process and serves the first request's rows forever.
+            return collection.all()
+        if callable(collection):
             return collection(self)
-        if hasattr(collection, "all") and not isinstance(collection, models.QuerySet):
-            return collection.all()  # a manager
         return collection
 
     def get_fx_collection_name(self) -> str:

@@ -434,3 +434,65 @@ def test_no_referer_and_no_url_still_raises(rf):
     view.object = None
     with pytest.raises(ImproperlyConfigured):
         view.get_success_url()
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_fx_collection_clones_a_class_level_queryset(rf):
+    """A queryset on the class keeps its result cache for the life of the process.
+
+    Returned as-is it serves the first request's rows forever. Four of six
+    implementations worked this out from the source and passed a manager instead.
+    """
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_collection = Group.objects.all()
+
+    view = V()
+    view.setup(_fx(rf.get("/")))
+
+    Group.objects.create(name="first")
+    assert [g.name for g in view.get_fx_collection()] == ["first"]
+    Group.objects.create(name="second")
+    names = [g.name for g in view.get_fx_collection()]
+    assert "second" in names, "a stale result cache was served"
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_fx_collection_accepts_a_plain_function(rf):
+    """A bare function on the class must not bind as a method and take self twice."""
+
+    def newest(view):
+        return Group.objects.order_by("-pk")
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_collection = newest
+
+    Group.objects.create(name="only")
+    view = V()
+    view.setup(_fx(rf.get("/")))
+    assert [g.name for g in view.get_fx_collection()] == ["only"]
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_fx_collection_still_accepts_staticmethod(rf):
+    """The shape implementations reached for when the plain function failed."""
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+        fx_collection = staticmethod(lambda view: Group.objects.all())
+
+    Group.objects.create(name="only")
+    view = V()
+    view.setup(_fx(rf.get("/")))
+    assert [g.name for g in view.get_fx_collection()] == ["only"]
