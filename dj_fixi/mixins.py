@@ -9,9 +9,11 @@ import logging
 from typing import Any
 from urllib.parse import urlencode
 
-from django.core.exceptions import FieldDoesNotExist
+from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured
 from django.db import models
 from django.http import HttpResponse
+
+from .request import is_fx as _is_fx
 
 logger = logging.getLogger(__name__)
 
@@ -40,23 +42,26 @@ class ContextPersistenceMixin:
         queryset = super().get_queryset()
 
         # Apply filtering
-        if self.filterset_class or self.filterset_fields:
+        if self.filterset_class:
             filterset = self.get_filterset(queryset)
             if filterset is not None:
                 queryset = filterset.qs
                 self.filterset = filterset
+        elif self.filterset_fields:
+            queryset = self.filter_queryset(queryset)
 
         # Apply sorting with validation
         sort_param = self.request.GET.get("sort", "")
         if sort_param:
-            # Validate the sort field against the queryset's model, which is
-            # always available even when the view sets ``queryset`` not ``model``.
-            field_name = sort_param.lstrip("-")
-            try:
-                queryset.model._meta.get_field(field_name)
+            # Validate against the queryset's model, which is always available
+            # even when the view sets ``queryset`` rather than ``model``. Sort
+            # values come from the query string, so an unknown one is ignored
+            # rather than raised -- but a *valid* related-field sort such as
+            # ``category__name`` must work, which means walking the segments.
+            if self._is_sortable(queryset.model, sort_param.lstrip("-")):
                 queryset = queryset.order_by(sort_param)
-            except FieldDoesNotExist:
-                logger.warning(f"Invalid sort field: {field_name}")
+            else:
+                logger.warning("Invalid sort field: %s", sort_param.lstrip("-"))
 
         return queryset
 
@@ -65,6 +70,54 @@ class ContextPersistenceMixin:
         if self.filterset_class:
             return self.filterset_class(self.request.GET, queryset=queryset, request=self.request)
         return None
+
+    def filter_queryset(self, queryset: models.QuerySet) -> models.QuerySet:
+        """
+        Apply ``filterset_fields`` from ``request.GET``, without a filter library.
+
+        Each declared name is checked against the model up front, so a typo in
+        ``filterset_fields`` raises ImproperlyConfigured instead of quietly
+        filtering nothing. Values absent from the query string are skipped, so
+        this is a no-op until the user actually filters.
+
+        Only exact matches on concrete fields are supported. For lookups
+        (``price__gte``), relations, or custom widgets, set ``filterset_class``.
+        """
+        lookups = {}
+        for field_name in self.filterset_fields:
+            if "__" in field_name:
+                raise ImproperlyConfigured(
+                    f"{type(self).__name__}.filterset_fields contains "
+                    f"{field_name!r}, but filterset_fields only supports exact "
+                    "matches on concrete fields. Use filterset_class for lookups."
+                )
+            try:
+                queryset.model._meta.get_field(field_name)
+            except FieldDoesNotExist as exc:
+                raise ImproperlyConfigured(
+                    f"{type(self).__name__}.filterset_fields contains "
+                    f"{field_name!r}, which is not a field on "
+                    f"{queryset.model.__name__}."
+                ) from exc
+
+            value = self.request.GET.get(field_name)
+            if value:
+                lookups[field_name] = value
+
+        return queryset.filter(**lookups) if lookups else queryset
+
+    @staticmethod
+    def _is_sortable(model: type[models.Model], path: str) -> bool:
+        """True when ``path`` (possibly ``a__b__c``) resolves to a field."""
+        for segment in path.split("__"):
+            if model is None:
+                return False
+            try:
+                field = model._meta.get_field(segment)
+            except FieldDoesNotExist:
+                return False
+            model = field.related_model
+        return True
 
     def get_context_data(self, **kwargs) -> dict[str, Any]:
         """Add preserved parameters to context."""
@@ -105,28 +158,51 @@ class FxResponseMixin:
     fx_success_event: str = "formSuccess"
     fx_error_event: str = "formError"
 
+    #: After a successful *create*, render a fresh unbound form rather than the
+    #: bound one. Without this the fragment echoes back the values just saved,
+    #: into a form the user is about to type into again. Updates are unaffected:
+    #: their bound values are the object's current state.
+    fx_reset_form_after_create: bool = True
+
     def get_template_names(self) -> list[str]:
-        """Return fragment templates for Fixi requests."""
-        if getattr(self.request, "is_fx", False):
-            original_templates = super().get_template_names()
-            fx_templates = []
+        """
+        Return fragment templates for Fixi requests.
 
-            for template in original_templates:
-                # Insert suffix before file extension
-                name_parts = template.rsplit(".", 1)
-                if len(name_parts) == 2:
-                    fx_template = f"{name_parts[0]}{self.fx_template_suffix}.{name_parts[1]}"
-                    fx_templates.append(fx_template)
+        An explicit ``partial_template`` (from FxView, when the two are composed)
+        wins outright. Names this mixin *derives* by convention go behind it:
+        letting a guessed ``foo_partial.html`` outrank the fragment the author
+        actually named is the silent-failure shape this library exists to avoid.
+        Deriving from the explicit partial is skipped too, since it is already a
+        fragment and only produced nonsense like ``_panel_partial.html``.
+        """
+        if not _is_fx(self.request):
+            return super().get_template_names()
 
-                # Also try a fragments subdirectory
-                parts = template.rsplit("/", 1)
-                if len(parts) == 2:
-                    fragment_template = f"{parts[0]}/fragments/{parts[1]}"
-                    fx_templates.append(fragment_template)
+        original_templates = super().get_template_names()
+        explicit = getattr(self, "partial_template", None)
+        fx_templates = []
 
-            return fx_templates + original_templates
+        for template in original_templates:
+            if template == explicit:
+                continue
 
-        return super().get_template_names()
+            # Insert suffix before file extension
+            name_parts = template.rsplit(".", 1)
+            if len(name_parts) == 2:
+                # Skip names that already carry the suffix -- FxView derives its
+                # own "_partial" variant, and suffixing that again only produced
+                # a "_partial_partial.html" lookup that can never resolve.
+                if not name_parts[0].endswith(self.fx_template_suffix):
+                    fx_templates.append(f"{name_parts[0]}{self.fx_template_suffix}.{name_parts[1]}")
+
+            # Also try a fragments subdirectory
+            parts = template.rsplit("/", 1)
+            if len(parts) == 2:
+                fragment_template = f"{parts[0]}/fragments/{parts[1]}"
+                fx_templates.append(fragment_template)
+
+        ordered = ([explicit] if explicit else []) + fx_templates + original_templates
+        return list(dict.fromkeys(ordered))
 
     def form_valid(self, form) -> HttpResponse:
         """
@@ -148,9 +224,19 @@ class FxResponseMixin:
         existing = getattr(self, "object", None)
         pk_before = getattr(existing, "pk", None)
 
-        response = super().form_valid(form)
+        try:
+            response = super().form_valid(form)
+        except ImproperlyConfigured:
+            # ModelFormMixin saves the object and *then* builds the success
+            # redirect. A Fixi request discards that redirect entirely, so a
+            # missing success_url must not turn an already-committed save into a
+            # 500 -- the row exists by the time this raises. Non-Fixi requests
+            # still need the redirect, so they re-raise as before.
+            if not _is_fx(self.request) or getattr(self, "object", None) is None:
+                raise
+            response = None
 
-        if not getattr(self.request, "is_fx", False):
+        if not _is_fx(self.request):
             return response
 
         detail = {"message": self.get_success_message()}
@@ -160,7 +246,8 @@ class FxResponseMixin:
         if obj_pk is not None:
             # Create/update: hand back the rendered fragment for swapping in.
             detail["object_id"] = str(obj_pk)
-            fx_response = self.render_to_response(self.get_context_data(form=form))
+            rendered_form = self.get_fx_success_form(form, created=pk_before is None)
+            fx_response = self.render_to_response(self.get_context_data(form=rendered_form))
         else:
             # Delete (or no object to render): nothing to swap.
             if pk_before is not None:
@@ -170,9 +257,37 @@ class FxResponseMixin:
         self._trigger_fx_event(fx_response, self.fx_success_event, detail)
         return fx_response
 
+    def get_fx_success_form(self, form, created: bool):
+        """
+        The form to render back into the fragment after a successful save.
+
+        Returns a fresh unbound form for a create (see
+        ``fx_reset_form_after_create``) and the bound form for an update.
+        Override for anything more specific -- a form whose constructor needs
+        arguments, for instance.
+        """
+        if not created or not self.fx_reset_form_after_create:
+            return form
+
+        get_form_class = getattr(self, "get_form_class", None)
+        if not callable(get_form_class):
+            return form
+        try:
+            return get_form_class()()
+        except TypeError:
+            # The form needs constructor arguments we cannot guess. Keep the
+            # bound form rather than failing a save that already committed.
+            logger.warning(
+                "%s could not build an unbound %s to reset the form after "
+                "create; override get_fx_success_form() to control this.",
+                type(self).__name__,
+                getattr(get_form_class(), "__name__", "form"),
+            )
+            return form
+
     def form_invalid(self, form) -> HttpResponse:
         """Handle form validation errors for Fixi requests."""
-        if getattr(self.request, "is_fx", False):
+        if _is_fx(self.request):
             context = self.get_context_data(form=form)
             response = self.render_to_response(context)
             response.status_code = 422
@@ -187,8 +302,21 @@ class FxResponseMixin:
         return super().form_invalid(form)
 
     def get_success_message(self) -> str:
-        """Generate success message for the operation."""
-        return f"{self.model._meta.verbose_name.title()} saved successfully"
+        """
+        Generate a success message for the operation.
+
+        Falls back to the saved object's own class, then to a generic message:
+        a FormView composed with this mixin has no ``model``, and reading it
+        blindly raised AttributeError on the *success* path only.
+        """
+        model = getattr(self, "model", None)
+        if model is None:
+            obj = getattr(self, "object", None)
+            model = type(obj) if obj is not None else None
+        meta = getattr(model, "_meta", None)
+        if meta is not None:
+            return f"{meta.verbose_name.title()} saved successfully"
+        return "Saved successfully"
 
     def _trigger_fx_event(
         self, response: HttpResponse, event_name: str, detail: dict | None = None

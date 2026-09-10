@@ -6,6 +6,7 @@ Provides Django forms with built-in Fixi attributes for inline editing and updat
 
 from django import forms
 from django.forms.utils import flatatt
+from django.middleware.csrf import get_token
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
@@ -34,6 +35,7 @@ class FxForm:
         trigger: str = "submit",
         css_class: str = "fx-form",
         cancel_action: str | None = None,
+        request=None,
     ):
         self.form = form
         self.action = action
@@ -45,6 +47,26 @@ class FxForm:
         # Endpoint the Cancel button GETs to restore the original view; falls
         # back to ``action`` when not supplied.
         self.cancel_action = cancel_action
+        # Optional: supply the request and ``render()`` emits the CSRF input for
+        # unsafe methods. Without it you must render ``{% csrf_token %}`` (or
+        # ``{% fx_csrf_token %}``) yourself, or the POST will be rejected.
+        self.request = request
+
+    def render_csrf(self) -> str:
+        """
+        Hidden CSRF input for unsafe methods, when a request was supplied.
+
+        Returns an empty string when ``request`` is None -- in that case the
+        caller is responsible for the token.
+        """
+        if self.request is None:
+            return ""
+        if self.method.upper() in ("GET", "HEAD", "OPTIONS", "TRACE"):
+            return ""
+        return format_html(
+            '<input type="hidden" name="csrfmiddlewaretoken" value="{}">',
+            get_token(self.request),
+        )
 
     def render_attrs(self) -> str:
         """Generate Fixi.js attributes for the form tag (values HTML-escaped)."""
@@ -61,16 +83,25 @@ class FxForm:
         return mark_safe(flatatt(attrs).lstrip())
 
     def render(self) -> str:
-        """Render complete form with Fixi attributes."""
+        """
+        Render complete form with Fixi attributes.
+
+        The Cancel button GETs ``cancel_action`` (falling back to ``action``).
+        It previously hardcoded ``fx-action=""``, which fixi resolves to the
+        *current URL*, so cancelling swapped the whole document into the target.
+        """
         return format_html(
             '<form class="{}" {}>'
-            "{}"
+            "{}{}"
             '<button type="submit">Save</button>'
-            '<button type="button" fx-action="" fx-target="{}" fx-swap="outerHTML">Cancel</button>'
+            '<button type="button" fx-action="{}" fx-method="GET" '
+            'fx-target="{}" fx-swap="outerHTML">Cancel</button>'
             "</form>",
             self.css_class,
             self.render_attrs(),
+            self.render_csrf(),
             self.form.as_p(),
+            self.cancel_action or self.action,
             self.target or "",
         )
 

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout *)"
+    ],
+    "additionalDirectories": [
+      "/Users/williamtalcott/projects/dj-fixi-tables",
+      "/Users/williamtalcott/projects/dj-htmx-cbv/example/example",
+      "/Users/williamtalcott/projects/dj-htmx-cbv/example/notes"
+    ]
+  }
+}
