@@ -17,6 +17,16 @@ from django.views.generic import FormView
 from dj_fixi.forms import FxForm
 from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin
 
+LOCMEM_TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "OPTIONS": {
+            "loaders": [("django.template.loaders.locmem.Loader", {"g/form.html": "FORM"})],
+            "context_processors": ["django.template.context_processors.request"],
+        },
+    }
+]
+
 
 @pytest.fixture
 def rf():
@@ -195,3 +205,114 @@ def test_csrf_token_without_the_request_context_processor(rf):
 def test_csrf_token_raises_outside_a_request_context():
     with pytest.raises(ImproperlyConfigured, match="RequestContext"):
         Template("{% load fixi_tags %}{% fx_csrf_token %}").render(Context())
+
+
+# --------------------------------------------------------------------------- #
+# A successful Fixi create used to save the row and *then* 500, when the view
+# had no success_url -- the redirect ModelFormMixin builds is discarded on the
+# Fixi path anyway. Found by two agents reading the source during the 0.3.0
+# generation evaluation.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+def test_fixi_create_without_success_url_still_returns_a_fragment(rf, settings):
+    from django.views.generic import CreateView
+
+    settings.TEMPLATES = LOCMEM_TEMPLATES
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = _GroupForm
+        template_name = "g/form.html"  # no success_url; Group has no get_absolute_url
+
+    view = V()
+    view.request = rf.post("/", {"name": "made"}, HTTP_FX_REQUEST="true")
+    view.object = None
+    form = _GroupForm({"name": "made"})
+    assert form.is_valid()
+
+    response = view.form_valid(form)
+
+    assert response.status_code == 200
+    assert Group.objects.filter(name="made").exists()
+    assert "formSuccess" in response["FX-Trigger"]
+
+
+@pytest.mark.django_db
+def test_non_fixi_create_without_success_url_still_raises(rf, settings):
+    """Django's own error must survive for the path that actually redirects."""
+    from django.views.generic import CreateView
+
+    settings.TEMPLATES = LOCMEM_TEMPLATES
+
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = _GroupForm
+        template_name = "g/form.html"
+
+    view = V()
+    view.request = rf.post("/", {"name": "plain"})
+    view.object = None
+    form = _GroupForm({"name": "plain"})
+    assert form.is_valid()
+
+    with pytest.raises(ImproperlyConfigured):
+        view.form_valid(form)
+
+
+# --------------------------------------------------------------------------- #
+# Composing FxResponseMixin with FxView used to bury the explicit
+# partial_template behind six convention-derived guesses, so a stray
+# foo_partial.html silently outranked the fragment the author actually named.
+# Found by an agent during the 0.3.0 generation evaluation.
+# --------------------------------------------------------------------------- #
+
+
+def _composed_candidates(rf):
+    from django.views.generic import CreateView
+
+    from dj_fixi.views import FxView
+
+    class V(FxResponseMixin, FxView, CreateView):
+        model = Group
+        fields = ["name"]
+        template_name = "notes/note_list.html"
+        partial_template = "notes/_panel.html"
+
+    view = V()
+    view.request = rf.post("/", HTTP_FX_REQUEST="true")
+    return view.get_template_names()
+
+
+def test_explicit_partial_template_outranks_derived_names(rf):
+    assert _composed_candidates(rf)[0] == "notes/_panel.html"
+
+
+def test_no_double_suffixed_candidate(rf):
+    assert not any("_partial_partial" in n for n in _composed_candidates(rf))
+
+
+def test_no_duplicate_candidates(rf):
+    names = _composed_candidates(rf)
+    assert len(names) == len(set(names))
+
+
+def test_full_page_still_last(rf):
+    assert _composed_candidates(rf)[-1] == "notes/note_list.html"
+
+
+def test_non_fixi_requests_are_untouched(rf):
+    from django.views.generic import CreateView
+
+    from dj_fixi.views import FxView
+
+    class V(FxResponseMixin, FxView, CreateView):
+        model = Group
+        fields = ["name"]
+        template_name = "notes/note_list.html"
+        partial_template = "notes/_panel.html"
+
+    view = V()
+    view.request = rf.get("/")
+    assert "notes/_panel.html" not in view.get_template_names()

@@ -159,6 +159,38 @@ Unsafe requests need CSRF. Attach it once per page:
 
 Never raises. A broken URLconf yields fewer results.
 
+## Gotchas that cost people time
+
+Every one of these was independently rediscovered by agents building against
+this library. They are behaviours, not bugs; the bugs found alongside them are
+fixed.
+
+- **One response, one target.** Fixi has no out-of-band swaps and picks the
+  target on the client, so a POST's success and its 422 land in the same place.
+  Make the fragment a region containing both the form and whatever the form
+  updates, rather than the form alone.
+- **A 204 deletes the target** under the default `outerHTML` swap, because fixi
+  assigns the empty body to `target.outerHTML`. That is exactly right for
+  removing a deleted row and wrong for anything else. `FxResponseMixin` returns
+  204 only when there is no object left to render, i.e. a delete.
+- **Fixi swaps on any status.** There is no status check in fixi.js, so a 422
+  body really does render into the page.
+- **`fx:after` fires BEFORE the swap.** The `{% fixi_events %}` shim listens
+  there, so a handler for a `FX-Trigger` event cannot see the swapped-in DOM.
+  Use `fx:swapped` for anything that touches the new nodes.
+- **A successful create still re-renders the bound form**, so the inputs echo
+  back what was just submitted. Override `get_context_data` to substitute a
+  fresh unbound form when `self.object` is set, if you want the form cleared.
+- **`success_url` is still required for the browser path.** `form_valid`
+  delegates to Django, which builds a redirect. Since 0.3.0 the Fixi path no
+  longer fails when that redirect cannot be built, but a non-Fixi POST to the
+  same view will raise without `success_url` or `get_absolute_url`.
+- **Give the form `novalidate`** if you want the server's 422 to be reachable.
+  Otherwise native browser validation suppresses the submit event.
+- **Django's `{# #}` comments are single-line only.** A multi-line one renders
+  as visible text. Use `{% comment %}`. Not a dj-fixi issue, but it bit four
+  separate authors of fragments.
+
 ## Check IDs
 
     dj_fixi.E101  A Django class earlier in the MRO shadows a dj-fixi hook

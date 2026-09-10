@@ -159,27 +159,44 @@ class FxResponseMixin:
     fx_error_event: str = "formError"
 
     def get_template_names(self) -> list[str]:
-        """Return fragment templates for Fixi requests."""
-        if _is_fx(self.request):
-            original_templates = super().get_template_names()
-            fx_templates = []
+        """
+        Return fragment templates for Fixi requests.
 
-            for template in original_templates:
-                # Insert suffix before file extension
-                name_parts = template.rsplit(".", 1)
-                if len(name_parts) == 2:
-                    fx_template = f"{name_parts[0]}{self.fx_template_suffix}.{name_parts[1]}"
-                    fx_templates.append(fx_template)
+        An explicit ``partial_template`` (from FxView, when the two are composed)
+        wins outright. Names this mixin *derives* by convention go behind it:
+        letting a guessed ``foo_partial.html`` outrank the fragment the author
+        actually named is the silent-failure shape this library exists to avoid.
+        Deriving from the explicit partial is skipped too, since it is already a
+        fragment and only produced nonsense like ``_panel_partial.html``.
+        """
+        if not _is_fx(self.request):
+            return super().get_template_names()
 
-                # Also try a fragments subdirectory
-                parts = template.rsplit("/", 1)
-                if len(parts) == 2:
-                    fragment_template = f"{parts[0]}/fragments/{parts[1]}"
-                    fx_templates.append(fragment_template)
+        original_templates = super().get_template_names()
+        explicit = getattr(self, "partial_template", None)
+        fx_templates = []
 
-            return fx_templates + original_templates
+        for template in original_templates:
+            if template == explicit:
+                continue
 
-        return super().get_template_names()
+            # Insert suffix before file extension
+            name_parts = template.rsplit(".", 1)
+            if len(name_parts) == 2:
+                # Skip names that already carry the suffix -- FxView derives its
+                # own "_partial" variant, and suffixing that again only produced
+                # a "_partial_partial.html" lookup that can never resolve.
+                if not name_parts[0].endswith(self.fx_template_suffix):
+                    fx_templates.append(f"{name_parts[0]}{self.fx_template_suffix}.{name_parts[1]}")
+
+            # Also try a fragments subdirectory
+            parts = template.rsplit("/", 1)
+            if len(parts) == 2:
+                fragment_template = f"{parts[0]}/fragments/{parts[1]}"
+                fx_templates.append(fragment_template)
+
+        ordered = ([explicit] if explicit else []) + fx_templates + original_templates
+        return list(dict.fromkeys(ordered))
 
     def form_valid(self, form) -> HttpResponse:
         """
@@ -201,7 +218,17 @@ class FxResponseMixin:
         existing = getattr(self, "object", None)
         pk_before = getattr(existing, "pk", None)
 
-        response = super().form_valid(form)
+        try:
+            response = super().form_valid(form)
+        except ImproperlyConfigured:
+            # ModelFormMixin saves the object and *then* builds the success
+            # redirect. A Fixi request discards that redirect entirely, so a
+            # missing success_url must not turn an already-committed save into a
+            # 500 -- the row exists by the time this raises. Non-Fixi requests
+            # still need the redirect, so they re-raise as before.
+            if not _is_fx(self.request) or getattr(self, "object", None) is None:
+                raise
+            response = None
 
         if not _is_fx(self.request):
             return response
