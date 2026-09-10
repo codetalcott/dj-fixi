@@ -66,6 +66,23 @@ This project was created by adapting code from:
 pytest
 ```
 
+Note that pytest does **not** run Django system checks (pytest-django has no
+support for them). `tests/test_check_helper.py` covers dj-fixi's own, and
+`dj_fixi.testing.assert_no_fixi_check_issues()` is what downstream projects use.
+Run `manage.py check` in `examples/demo_project` to exercise them for real.
+
+### Gotcha: stale bytecode when A/B testing a line
+
+Toggling a line to compare before/after can silently keep running the old code.
+CPython invalidates a `.pyc` on mtime **and size**, both at one-second
+granularity — so an edit that swaps two names of equal length, applied within the
+same second, looks unchanged. Reordering base classes is exactly this shape. Four
+separate investigations of the same bug hit it. Clear caches before measuring:
+
+```bash
+find . -name __pycache__ -type d -exec rm -rf {} +
+```
+
 ### Running Demo
 ```bash
 cd examples/demo_project
