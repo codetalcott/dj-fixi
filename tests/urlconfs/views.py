@@ -115,24 +115,24 @@ class MissingHashPartial(FxView, ListView):
     partial_template = "good/list.html#nope"
 
 
-# ------------------------- derived partial names (W204) -------------------- #
+# ------------------------- no partial_template (W202) ---------------------- #
 
 
-class DerivedList(FxView, ListView):
-    """Serves good/list_partial.html only because dj-fixi derives the name."""
+class NoPartialList(FxView, ListView):
+    """Fixi requests get the page; nothing is derived from template_name."""
 
     model = Group
     template_name = TEMPLATE
 
 
-class DerivedCreate(FxResponseMixin, CreateView):
+class NoPartialCreate(FxResponseMixin, CreateView):
     model = Group
     fields = ["name"]
     template_name = TEMPLATE
     success_url = "/"
 
 
-class DerivedDelete(FxResponseMixin, DeleteView):
+class NoPartialDelete(FxResponseMixin, DeleteView):
     """Renders nothing for Fixi (204), so no partial is expected of it."""
 
     model = Group

@@ -177,5 +177,5 @@ a bug plus a note about the bug — fix the attribute instead.
 - Use `render_fx()` for simple cases, `FxView` for complex ones
 - New checks need a case in `tests/test_checks_no_false_positives.py` first
 - New lint rules need a case in `tests/test_lint_no_false_positives.py` first
-- Write the partial's name down (`partial_template`); derived names are deprecated
+- Write the partial's name down (`partial_template`); nothing is derived from `template_name`
 - Test with `FxTestClient`: it lints responses and refuses to guess about redirects

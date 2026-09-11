@@ -16,7 +16,6 @@ from django.http import HttpResponse
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from .request import is_fx as _is_fx
-from .views import derived_partial_name
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +156,6 @@ class FxResponseMixin:
         - Triggers custom Fixi events for client-side handling
     """
 
-    fx_template_suffix: str = "_partial"
     fx_success_event: str = "formSuccess"
     fx_error_event: str = "formError"
 
@@ -187,34 +185,18 @@ class FxResponseMixin:
 
     def get_template_names(self) -> list[str]:
         """
-        Return fragment templates for Fixi requests.
+        Return the fragment for Fixi requests.
 
-        An explicit ``partial_template`` (from FxView, when the two are composed,
-        or set directly on the view) is the whole answer: a name the author wrote
+        A ``partial_template`` (set on the view, or from FxView when the two are
+        composed) is the whole answer for a Fixi request: a name the author wrote
         down must not fall through to the full page when it is missing. Without
-        one, names derived by convention (``_partial`` suffix, ``fragments/``
-        directory) are tried ahead of the originals. Derived names are
-        deprecated and go away in 0.5; ``manage.py check`` (W204) names the one
-        a view relies on so it can be written down.
+        one, Fixi requests get the same names as every other request; W202 names
+        the view at boot. Nothing is derived by convention any more.
         """
-        if not _is_fx(self.request):
-            return super().get_template_names()
-
         explicit = getattr(self, "partial_template", None)
-        if explicit:
+        if explicit and _is_fx(self.request):
             return [explicit]
-
-        original_templates = super().get_template_names()
-        fx_templates = []
-        for template in original_templates:
-            derived = derived_partial_name(template, self.fx_template_suffix)
-            if derived:
-                fx_templates.append(derived)
-            directory, sep, leaf = template.rpartition("/")
-            if sep and "#" not in template:
-                fx_templates.append(f"{directory}/fragments/{leaf}")
-
-        return list(dict.fromkeys(fx_templates + original_templates))
+        return super().get_template_names()
 
     def form_valid(self, form) -> HttpResponse:
         """

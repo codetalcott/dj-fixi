@@ -12,24 +12,6 @@ from .request import is_fx as _is_fx
 from .request import vary_on_fx
 
 
-def derived_partial_name(template_name: str | None, suffix: str = "_partial") -> str | None:
-    """
-    The fragment name dj-fixi derives from a page name, or ``None``.
-
-    ``products/list.html`` becomes ``products/list_partial.html``. Nothing is
-    derived from a name that already carries the suffix, has no extension, or
-    is a Django 6 partial reference (``list.html#rows``): those are written down
-    and stand on their own. Derived names are deprecated; 0.5 removes them in
-    favour of an explicit ``partial_template``.
-    """
-    if not template_name or "#" in template_name:
-        return None
-    head, sep, ext = template_name.rpartition(".")
-    if not sep or not head or "/" in ext or head.endswith(suffix):
-        return None
-    return f"{head}{suffix}.{ext}"
-
-
 class FxView(View):
     """
     Base view for Fixi.js integration with automatic fragment/page detection.
@@ -76,12 +58,13 @@ class FxView(View):
         """
         Get template names with automatic partial template selection.
 
-        For a Fixi request with an explicit ``partial_template``, that name and
-        nothing else: a name the author wrote down must not fall through to the
-        full page when it is missing, so a typo raises ``TemplateDoesNotExist``
-        at the first request instead of swapping a page into a div. Without an
-        explicit partial, a derived ``_partial`` name is tried first (deprecated,
-        see ``derived_partial_name``), then ``template_name``.
+        For a Fixi request with a ``partial_template``, that name and nothing
+        else: a name the author wrote down must not fall through to the full
+        page when it is missing, so a typo raises ``TemplateDoesNotExist`` at
+        the first request instead of swapping a page into a div. Without one,
+        Fixi requests get ``template_name`` like any other request; check W202
+        says so at boot. Nothing is derived by convention (0.5 removed the
+        ``_partial`` suffix and ``fragments/`` guesses).
 
         When FxView is mixed with a Django generic view that supplies its own
         ``get_template_names`` (e.g. the model-derived name from
@@ -92,12 +75,6 @@ class FxView(View):
             return [self.partial_template]
 
         template_names = []
-
-        derived = derived_partial_name(self.template_name) if self.is_fx else None
-        if derived:
-            template_names.append(derived)
-
-        # Always include base template as fallback
         if self.template_name:
             template_names.append(self.template_name)
 

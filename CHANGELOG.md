@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Removed
+
+- **Derived partial names.** `template_name` no longer implies
+  `<name>_partial.<ext>` or `<dir>/fragments/<leaf>`, and `fx_template_suffix`
+  is gone. A view has a fragment when it names one in `partial_template`
+  (`"products/list_partial.html"`, or `"products/list.html#rows"` on Django 6);
+  otherwise Fixi requests get `template_name`, and W202 says so. W204, which
+  existed to announce this removal, is gone with it. Announced in 0.4.0 as a
+  0.5 change; nothing outside this repository depended on the derivation.
+
+### Changed
+
+- **W202 is exact now.** It fires when a routed dj-fixi view declares no
+  `partial_template` and has a page to serve, whether or not a conventionally
+  named file happens to exist, and its hint is the line to write. Delete views
+  and views that override `get_template_names` stay exempt.
+
+
 ## 0.4.0 — what hx-flask taught
 
 The handler-first htmx 4 work in hx-flask found failure shapes dj-fixi shares.

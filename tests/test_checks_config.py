@@ -123,9 +123,16 @@ def test_w202_when_no_partial_exists_anywhere():
         assert "SILENCED_SYSTEM_CHECKS" in hint_for("dj_fixi.W202")
 
 
-def test_w202_silent_when_a_partial_exists():
+def test_w202_silent_when_partial_template_is_declared():
     with override_settings(ROOT_URLCONF="tests.urlconfs.good", TEMPLATES=TEMPLATES):
         assert "dj_fixi.W202" not in check_ids()
+
+
+def test_w202_fires_even_when_a_conventionally_named_file_exists():
+    """0.5: nothing is derived, so an unnamed good/list_partial.html does not count."""
+    with override_settings(ROOT_URLCONF="tests.urlconfs.templates", TEMPLATES=TEMPLATES):
+        assert "dj_fixi.W202" in check_ids()
+        assert "partial_template = 'good/list_partial.html'" in hint_for("dj_fixi.W202")
 
 
 # --------------------------------------------------------------------------- #
@@ -179,8 +186,8 @@ def test_app_config_is_auto_discovered():
 
 
 # --------------------------------------------------------------------------- #
-# 0.4.0: W203 (htmx attributes in project templates), W204 (derived partial
-# names), and the W201 hint for Django 6 partial syntax
+# 0.4.0: W203 (htmx attributes in project templates) and the W201 hint for
+# Django 6 partial syntax
 # --------------------------------------------------------------------------- #
 
 
@@ -192,14 +199,6 @@ def test_w203_names_the_htmx_attributes_and_their_translations(tmp_path):
         assert "dj_fixi.W203" in check_ids()
         hint = hint_for("dj_fixi.W203")
     assert "fx-action" in hint and "no fixi equivalent" in hint and "SILENCED_SYSTEM_CHECKS" in hint
-
-
-@override_settings(TEMPLATES=TEMPLATES, ROOT_URLCONF="tests.urlconfs.derived")
-def test_w204_names_the_derived_partial_and_the_view():
-    messages = [m for m in run_checks(tags=["dj_fixi"]) if m.id == "dj_fixi.W204"]
-    assert sorted(m.obj.__name__ for m in messages) == ["DerivedCreate", "DerivedList"]
-    assert "partial_template = 'good/list_partial.html'" in messages[0].hint
-    assert "0.5" in messages[0].hint
 
 
 @override_settings(TEMPLATES=TEMPLATES, ROOT_URLCONF="tests.urlconfs.templates")
