@@ -2,6 +2,7 @@
 Shortcut functions for Fixi.js integration with Django.
 """
 
+from django.conf import settings
 from django.shortcuts import render
 
 from .request import is_fx as _is_fx
@@ -58,4 +59,8 @@ def render_fx(request, fragment_template, page_template=None, context=None, **kw
     # Add Fixi context
     context.setdefault("is_fx", is_fx)
 
-    return vary_on_fx(render(request, template, context, **kwargs))
+    response = render(request, template, context, **kwargs)
+    if settings.DEBUG and is_fx:
+        # The rendered HttpResponse keeps no template name; say which one it was.
+        response["X-FX-Template"] = template
+    return vary_on_fx(response)

@@ -22,12 +22,13 @@
                 <button {% fx_attrs action=product.get_absolute_url method="GET" target="#product-container" swap="innerHTML" %}>
                     Edit
                 </button>
-                {# Delete: POST (DeleteView routes POST -> form_valid); empty 204 body
-                   removes the row via the outerHTML swap. CSRF travels in the
-                   X-CSRFToken header added by the fx:config handler in list.html. #}
+                {# Delete: an HTTP DELETE (FxResponseMixin.delete answers Fixi with
+                   204 since 0.4.0); the empty body removes the row via the outerHTML
+                   swap. CSRF travels in the X-CSRFToken header added by the
+                   fx:config handler in base.html. #}
                 <button
                     fx-action="{% url 'product_delete' product.id %}"
-                    fx-method="POST"
+                    fx-method="DELETE"
                     fx-target="#product-{{ product.id }}"
                     fx-swap="outerHTML"
                     onclick="return confirm('Delete {{ product.name }}?')">

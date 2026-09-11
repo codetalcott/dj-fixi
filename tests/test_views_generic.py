@@ -151,6 +151,5 @@ def test_get_template_names_partial_first_for_fx(rf):
 
     view = V()
     view.setup(_request(rf, is_fx=True))
-    names = view.get_template_names()
 
-    assert names.index("products/list_partial.html") < names.index("products/list.html")
+    assert view.get_template_names() == ["products/list_partial.html"]

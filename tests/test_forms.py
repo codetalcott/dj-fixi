@@ -73,3 +73,25 @@ def test_fxmodelform_as_fx_inline_threads_cancel_action():
 
     assert 'id="row-1"' in html
     assert 'fx-action="/g/1/row/"' in html
+
+
+# ------------------------------------------------------------- validation (0.4.0)
+
+
+def test_fxform_normalizes_swap_like_the_tag():
+    """FxForm emitted the raw swap; 'innerhtml' made fixi throw and swap nothing."""
+    f = FxForm(form=SimpleForm(), action="/save", swap="innerhtml")
+    assert 'fx-swap="innerHTML"' in f.render_attrs()
+
+
+def test_fxform_rejects_values_fixi_cannot_act_on():
+    import pytest
+
+    with pytest.raises(ValueError, match="not something fixi.js recognizes"):
+        FxForm(form=SimpleForm(), action="/save", swap="replace").render_attrs()
+    with pytest.raises(ValueError, match="not one event name"):
+        FxForm(form=SimpleForm(), action="/save", trigger="submit, change").render_attrs()
+    with pytest.raises(ValueError, match="undefined"):
+        FxForm(form=SimpleForm(), action="").render_attrs()
+    with pytest.raises(ValueError, match="fetch\\(\\) refuses"):
+        FxForm(form=SimpleForm(), action="/save", method="TRACE").render_attrs()

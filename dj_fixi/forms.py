@@ -10,6 +10,8 @@ from django.middleware.csrf import get_token
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
+from dj_fixi.attrs import normalize_swap, validate_action, validate_method, validate_trigger
+
 
 class FxForm:
     """
@@ -69,12 +71,20 @@ class FxForm:
         )
 
     def render_attrs(self) -> str:
-        """Generate Fixi.js attributes for the form tag (values HTML-escaped)."""
+        """
+        Generate Fixi.js attributes for the form tag (values HTML-escaped).
+
+        Values go through the same validation as ``{% fx_attrs %}``: the swap is
+        normalized to fixi's spelling (``"innerhtml"`` becomes ``innerHTML``
+        rather than a value fixi throws on), and an empty action, a trigger with
+        spaces, or a method fetch() refuses raise ``ValueError`` here instead of
+        producing a form that does nothing when submitted.
+        """
         attrs = {
-            "fx-action": self.action,
-            "fx-method": self.method,
-            "fx-swap": self.swap,
-            "fx-trigger": self.trigger,
+            "fx-action": validate_action(self.action),
+            "fx-method": validate_method(self.method),
+            "fx-swap": normalize_swap(self.swap),
+            "fx-trigger": validate_trigger(self.trigger),
         }
 
         if self.target:

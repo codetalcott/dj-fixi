@@ -75,3 +75,62 @@ def test_jinja2_only_project_does_not_trigger_the_context_processor_check():
 def test_user_override_is_a_warning_never_an_error():
     """A deliberate non-cooperative override must not block runserver."""
     assert "dj_fixi.E101" not in check_ids()
+
+
+# ------------------------------------------------------------------ 0.4.0
+# W203 (htmx in project templates) and W204 (fragment exists only as a derived
+# name). Both scan things a project may legitimately have.
+
+from .checks_support import GOOD_FILES, TEMPLATES_NO_PARTIAL, fs_templates  # noqa: E402
+
+
+def test_w203_silent_for_clean_templates_and_htmx_inside_comments(tmp_path):
+    files = {
+        **GOOD_FILES,
+        "clean.html": '{% load fixi_tags %}<button {% fx_attrs action="/x/" %}>x</button><a fx-action="/y/">y</a>',
+        "commented.html": '{# <a hx-get="/old/">old</a> #}{% comment %}hx-post="/y/"{% endcomment %}<b>ok</b>',
+        "notes.txt": '<a hx-get="/x/">not a template</a>',
+    }
+    with override_settings(TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.good"):
+        assert check_ids() == []
+
+
+def test_w203_silent_when_no_dj_fixi_view_is_routed(tmp_path):
+    files = {**GOOD_FILES, "htmx.html": '<a hx-get="/x/">x</a>'}
+    with override_settings(TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.fbv_only"):
+        assert "dj_fixi.W203" not in check_ids()
+
+
+def test_w203_silent_when_django_htmx_is_installed_too(tmp_path, monkeypatch):
+    from django.apps import apps
+
+    real = apps.is_installed
+    monkeypatch.setattr(apps, "is_installed", lambda name: name == "django_htmx" or real(name))
+    files = {**GOOD_FILES, "htmx.html": '<a hx-get="/x/">x</a>'}
+    with override_settings(TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.good"):
+        assert "dj_fixi.W203" not in check_ids()
+
+
+def test_w203_silent_for_templates_under_site_packages(tmp_path, monkeypatch):
+    files = {**GOOD_FILES, "vendored/htmx.html": '<a hx-get="/x/">x</a>'}
+    templates = fs_templates(tmp_path, files)
+    monkeypatch.setattr("sysconfig.get_paths", lambda: {"purelib": str(tmp_path), "platlib": str(tmp_path)})
+    with override_settings(TEMPLATES=templates, ROOT_URLCONF="tests.urlconfs.good"):
+        assert "dj_fixi.W203" not in check_ids()
+
+
+def test_w203_silent_for_a_jinja2_only_project(tmp_path):
+    (tmp_path / "htmx.html").write_text('<a hx-get="/x/">x</a>')
+    jinja = [{"BACKEND": "django.template.backends.jinja2.Jinja2", "DIRS": [str(tmp_path)]}]
+    with override_settings(TEMPLATES=jinja, ROOT_URLCONF="tests.urlconfs.good"):
+        assert "dj_fixi.W203" not in check_ids()
+
+
+@override_settings(TEMPLATES=TEMPLATES)
+def test_w204_silent_when_the_partial_is_written_down_or_there_is_none():
+    for urlconf in ("tests.urlconfs.good", "tests.urlconfs.user_shadow", "tests.urlconfs.fbv_only"):
+        with override_settings(ROOT_URLCONF=urlconf):
+            assert "dj_fixi.W204" not in check_ids()
+    with override_settings(ROOT_URLCONF="tests.urlconfs.templates", TEMPLATES=TEMPLATES_NO_PARTIAL):
+        found = check_ids()
+        assert "dj_fixi.W202" in found and "dj_fixi.W204" not in found

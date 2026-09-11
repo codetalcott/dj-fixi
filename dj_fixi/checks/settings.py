@@ -56,7 +56,10 @@ def check_middleware_installed(app_configs=None, **kwargs):
                 "directly, so template selection still works. But 'request.is_fx' "
                 "in your own view code will raise AttributeError, and responses "
                 "built outside dj-fixi will not carry 'Vary: FX-Request', which "
-                "lets a shared cache serve a full page into a swap target. Add "
+                "lets a shared cache serve a full page into a swap target. Under "
+                "DEBUG the middleware also logs lint findings for every Fixi "
+                "response, redirects fetch would follow into a fragment, and the "
+                "template each fragment came from (X-FX-Template). Add "
                 "'dj_fixi.middleware.FxMiddleware' to MIDDLEWARE."
             ),
             id="dj_fixi.W001",

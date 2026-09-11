@@ -10,24 +10,21 @@ from django.templatetags.static import static
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
+from dj_fixi import attrs as _attrs
+
 register = template.Library()
 
-# Fixi dispatches swaps case-sensitively: the adjacent positions go through a
-# lowercase regex, and everything else is looked up as a property on the target
-# element ("outerhtml" is not a property, so fixi throws and nothing swaps).
-# Map the case-insensitive spelling to the one fixi actually recognizes.
-SWAP_VALUES = {
-    "innerhtml": "innerHTML",
-    "outerhtml": "outerHTML",
-    "textcontent": "textContent",
-    "innertext": "innerText",
-    "beforebegin": "beforebegin",
-    "afterbegin": "afterbegin",
-    "beforeend": "beforeend",
-    "afterend": "afterend",
-    "none": "none",
-    "morph": "morph",  # provided by paxi.js
-}
+#: Re-exported from :mod:`dj_fixi.attrs`, the one source of truth for what fixi.js
+#: accepts. The tag, ``FxForm`` and ``dj_fixi.lint`` all read the same table.
+SWAP_VALUES = _attrs.SWAP_VALUES
+
+
+def _checked(validate, value):
+    """Run one of the ``dj_fixi.attrs`` validators, raising the template error."""
+    try:
+        return validate(value)
+    except ValueError as exc:
+        raise template.TemplateSyntaxError(f"{{% fx_attrs %}} got {exc}") from None
 
 
 @register.simple_tag
@@ -55,14 +52,22 @@ def fx_attrs(action=None, method="GET", target=None, swap="outerHTML", trigger="
         and ``outerHTML`` swap. Passing those values renders nothing for them, since
         Fixi already applies them when the attribute is absent. Pass a non-default
         value (e.g. ``swap="innerHTML"``) to emit it explicitly.
+
+        Every value is validated against what fixi.js will do with it, and the tag
+        raises ``TemplateSyntaxError`` rather than emit something fixi ignores:
+        an empty ``action`` (fixi fetches ``./undefined``), a ``trigger`` with
+        spaces or commas (fixi waits for an event named exactly that), a
+        ``method`` fetch() refuses, or a ``swap`` fixi does not recognize.
     """
     attrs = {}
 
-    if action:
-        attrs["fx-action"] = action
+    if action is not None:
+        attrs["fx-action"] = _checked(_attrs.validate_action, action)
 
-    if method and method.upper() != "GET":
-        attrs["fx-method"] = method.upper()
+    if method:
+        method = _checked(_attrs.validate_method, method)
+        if method != "GET":
+            attrs["fx-method"] = method
 
     if target:
         attrs["fx-target"] = target
@@ -73,8 +78,10 @@ def fx_attrs(action=None, method="GET", target=None, swap="outerHTML", trigger="
         if swap != "outerHTML":
             attrs["fx-swap"] = swap
 
-    if trigger and trigger != "click":
-        attrs["fx-trigger"] = trigger
+    if trigger:
+        trigger = _checked(_attrs.validate_trigger, trigger)
+        if trigger != "click":
+            attrs["fx-trigger"] = trigger
 
     # Add any extra attributes
     for key, value in kwargs.items():
@@ -94,15 +101,7 @@ def normalize_swap(swap):
     fixi throws on an unknown swap, so the request succeeds, the server returns
     200, and nothing in the page changes.
     """
-    canonical = SWAP_VALUES.get(str(swap).lower())
-    if canonical is None:
-        raise template.TemplateSyntaxError(
-            f"{{% fx_attrs %}} got swap={swap!r}, which fixi.js does not recognize. "
-            f"Valid values: {', '.join(sorted(set(SWAP_VALUES.values())))}. "
-            "To target an arbitrary element property, write the fx-swap "
-            "attribute directly instead of using this tag."
-        )
-    return canonical
+    return _checked(_attrs.normalize_swap, swap)
 
 
 @register.simple_tag(takes_context=True)
@@ -165,8 +164,10 @@ def fixi_events():
         {% fixi_events %}
 
     Fixi core does not read response headers, so the ``FX-Trigger`` header set by
-    FxResponseMixin is inert without this (or an equivalent moxi ``on-fx:after``
-    handler). Load it *after* fixi.js.
+    FxResponseMixin is inert without this (or an equivalent moxi ``on-fx:swapped``
+    handler). Load it *after* fixi.js. The same file logs, in the console, the
+    mistakes fixi swallows: a target selector that matches nothing, a swap
+    spelling fixi cannot perform, and a request that failed.
     """
     return format_html('<script src="{}"></script>', static("dj_fixi/fixi-events.js"))
 

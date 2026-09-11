@@ -45,6 +45,7 @@ def hooks(*bases):
         (
             (DeleteView, FxResponseMixin),
             [
+                "delete",
                 "form_invalid",
                 "form_valid",
                 "get_context_data",

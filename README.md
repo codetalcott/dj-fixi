@@ -9,7 +9,8 @@ Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi) - a lig
 - 🏗️ **View Mixins** - Drop-in enhancements for class-based views (`FxResponseMixin`, `ContextPersistenceMixin`, `OptimizedQueryMixin`)
 - 🎨 **Template Tags** - Helpers for Fixi attributes, CSRF, and loading the (vendored) Fixi.js
 - 📝 **Form Helpers** - `FxForm`/`FxModelForm` render Django forms with Fixi attributes
-- 🧪 **Testing Utilities** - Test client with Fixi request helpers
+- 🧪 **Testing Utilities** - A test client that lints every response for what fixi.js would silently ignore, and refuses to guess about redirects
+- 🔎 **Lint** - `dj_fixi.lint` knows the six attributes fixi reads and the htmx ones it does not (see [Lint](#lint))
 - 🚨 **System Checks** - `manage.py check` catches the misconfigurations that would otherwise fail silently (see [System checks](#system-checks))
 
 ## Installation
@@ -120,14 +121,38 @@ rather than expecting Fixi to behave the same way.
 `{"formSuccess": {"object_id": "7"}}`). **Fixi core does not read response headers**, so
 this header does nothing on its own. Enable it one of two ways:
 
-- **Shipped shim (zero-config):** add `{% fixi_events %}` after `{% fixi_js %}`. It adds a
-  small `fx:after` listener that turns the header into a bubbling `CustomEvent`, which you
-  listen for with `document.addEventListener("formSuccess", (e) => …)`.
+- **Shipped shim (zero-config):** add `{% fixi_events %}` after `{% fixi_js %}`. It turns
+  the header into a bubbling `CustomEvent` **after the swap**, dispatched on the element
+  that made the request if it is still in the document and on `<body>` otherwise (a
+  delete's `outerHTML` swap removes the element that asked). A string `target` key in
+  the detail names a selector to dispatch on instead. Listen with
+  `document.addEventListener("formSuccess", (e) => …)`. The same file logs to the console
+  the three mistakes fixi swallows: an `fx-target` that matches nothing (fixi swaps into
+  the element itself), a swap spelled so fixi cannot perform it, and a failed request.
 - **moxi.js:** if you already use [moxi](https://fixiproject.org), write the equivalent
-  `on-fx:after` handler that reads `evt.detail.cfg.response.headers.get('FX-Trigger')`.
+  `on-fx:swapped` handler that reads `evt.detail.cfg.response.headers.get('FX-Trigger')`.
 
 Unsafe Fixi requests (POST/DELETE/…) still need a CSRF token; attach it per request via an
 `fx:config` listener setting the `X-CSRFToken` header (see the demo's `base.html`).
+
+## Lint
+
+fixi.js reads six attributes and ignores everything else, so `hx-get` written from habit,
+`fx-swap="outerhtml"`, `fx-trigger="keyup delay:200ms"` and an `fx-target` that matches
+nothing all render a 200 and do nothing in the browser. `dj_fixi.lint` makes them loud on
+the surface a test sees:
+
+```python
+from dj_fixi.testing import FxTestClient
+
+client = FxTestClient()          # every text/html response is linted; errors raise
+client.fx_get("/products/")     # a redirect here raises too: pass follow=True or False
+```
+
+Each finding names the element, the line, and the line of `fixi.js` that explains it, and
+`dj_fixi.lint.FINDING_IDS` lists them all. `FxMiddleware` logs the same findings under
+`DEBUG` and never raises. `{% fx_attrs %}` and `FxForm` refuse the same mistakes at render
+time, before there is anything to lint.
 
 ## System checks
 
@@ -147,6 +172,8 @@ library cannot fix it — so `manage.py check` reports it at startup instead.
 | `dj_fixi.W002` | Warning | No template engine enables `context_processors.request` |
 | `dj_fixi.W201` | Warning | A declared `template_name`/`partial_template` resolves to nothing |
 | `dj_fixi.W202` | Warning | Fixi requests to a view can only ever render the full page |
+| `dj_fixi.W203` | Warning | A project template uses htmx attributes, which fixi ignores |
+| `dj_fixi.W204` | Warning | A view's fragment exists only as a derived name; write it down |
 | `dj_fixi.E301` | Error | `staticfiles` is installed but `fixi.js` is unfindable |
 | `dj_fixi.W302` | Warning | `django.contrib.staticfiles` is not installed |
 

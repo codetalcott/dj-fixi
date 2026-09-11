@@ -86,3 +86,83 @@ def test_middleware_no_longer_sets_mcp_attributes(middleware, rf):
     assert not hasattr(request, "is_mcp")
     assert not hasattr(request, "mcp_session")
     assert "X-MCP-Compatible" not in response
+
+
+# ------------------------------------------------------------------ 0.4.0
+# Under DEBUG the middleware says what fixi would do silently. Never raises.
+
+LOCMEM = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "OPTIONS": {
+            "loaders": [
+                ("django.template.loaders.locmem.Loader", {"m/page.html": "PAGE", "m/page_partial.html": "PART"})
+            ]
+        },
+    }
+]
+
+
+@override_settings(DEBUG=True)
+def test_debug_logs_lint_findings_for_fixi_responses_only(rf, caplog):
+    mw = FxMiddleware(lambda r: HttpResponse('<a fx-action="/x/" fx-swap="outerhtml">x</a>'))
+    with caplog.at_level("WARNING", logger="dj_fixi.middleware"):
+        response = mw(rf.get("/x/", HTTP_FX_REQUEST="true"))
+    assert response.status_code == 200  # logged, never raised
+    assert any("dj_fixi.L103" in m and "GET /x/" in m for m in caplog.messages)
+    caplog.clear()
+    with caplog.at_level("WARNING", logger="dj_fixi.middleware"):
+        mw(rf.get("/x/"))
+    assert caplog.messages == []
+
+
+@override_settings(DEBUG=False)
+def test_nothing_is_logged_outside_debug(rf, caplog):
+    mw = FxMiddleware(lambda r: HttpResponse('<a fx-action="/x/" fx-swap="outerhtml">x</a>'))
+    with caplog.at_level("WARNING", logger="dj_fixi.middleware"):
+        mw(rf.get("/x/", HTTP_FX_REQUEST="true"))
+    assert caplog.messages == []
+
+
+@override_settings(DEBUG=True)
+def test_debug_logs_the_redirects_fetch_mishandles_and_not_prg(rf, caplog):
+    from django.http import HttpResponseRedirect
+
+    mw = FxMiddleware(lambda r: HttpResponseRedirect("/list/"))
+    with caplog.at_level("WARNING", logger="dj_fixi.middleware"):
+        mw(rf.delete("/things/3/", HTTP_FX_REQUEST="true"))
+    assert any("DELETE /things/3/" in m and "follows redirects" in m for m in caplog.messages)
+    caplog.clear()
+    with caplog.at_level("WARNING", logger="dj_fixi.middleware"):
+        mw(rf.post("/things/", HTTP_FX_REQUEST="true"))  # post-redirect-get is idiomatic
+    assert caplog.messages == []
+
+    slash = FxMiddleware(lambda r: HttpResponseRedirect("/things/"))
+    with caplog.at_level("WARNING", logger="dj_fixi.middleware"):
+        slash(rf.get("/things", HTTP_FX_REQUEST="true"))
+    assert any("APPEND_SLASH" in m for m in caplog.messages)
+
+
+@override_settings(DEBUG=True, TEMPLATES=LOCMEM)
+def test_debug_names_the_template_a_fixi_response_came_from(rf):
+    from django.template.response import TemplateResponse
+
+    def view(request):
+        return TemplateResponse(request, ["m/page_partial.html", "m/page.html"]).render()
+
+    response = FxMiddleware(view)(rf.get("/x/", HTTP_FX_REQUEST="true"))
+    assert response["X-FX-Template"] == "m/page_partial.html"
+    assert "X-FX-Template" not in FxMiddleware(view)(rf.get("/x/"))
+
+
+@override_settings(DEBUG=True)
+def test_streaming_and_non_html_responses_are_left_alone(rf, caplog):
+    from django.http import JsonResponse, StreamingHttpResponse
+
+    for factory in (
+        lambda r: StreamingHttpResponse([b'<a fx-swap="outerhtml">'], content_type="text/html"),
+        lambda r: JsonResponse({"hx-get": 1}),
+    ):
+        with caplog.at_level("WARNING", logger="dj_fixi.middleware"):
+            FxMiddleware(factory)(rf.get("/x/", HTTP_FX_REQUEST="true"))
+    assert caplog.messages == []

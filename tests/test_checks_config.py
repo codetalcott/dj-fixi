@@ -108,7 +108,7 @@ def test_w201_typoed_partial_template():
 
 def test_w201_hint_explains_the_silent_fall_through():
     with override_settings(ROOT_URLCONF="tests.urlconfs.templates", TEMPLATES=TEMPLATES):
-        assert "select_template" in hint_for("dj_fixi.W201")
+        assert "never falls through" in hint_for("dj_fixi.W201")
 
 
 def test_w201_silent_when_every_template_resolves():
@@ -176,3 +176,33 @@ def test_app_config_is_auto_discovered():
     from django.apps import apps
 
     assert type(apps.get_app_config("dj_fixi")).__name__ == "DjFixiConfig"
+
+
+# --------------------------------------------------------------------------- #
+# 0.4.0: W203 (htmx attributes in project templates), W204 (derived partial
+# names), and the W201 hint for Django 6 partial syntax
+# --------------------------------------------------------------------------- #
+
+
+def test_w203_names_the_htmx_attributes_and_their_translations(tmp_path):
+    from .checks_support import GOOD_FILES, fs_templates
+
+    files = {**GOOD_FILES, "mixed.html": '<button hx-get="/x/" hx-target="#r" hx-boost="true">x</button>'}
+    with override_settings(TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.good"):
+        assert "dj_fixi.W203" in check_ids()
+        hint = hint_for("dj_fixi.W203")
+    assert "fx-action" in hint and "no fixi equivalent" in hint and "SILENCED_SYSTEM_CHECKS" in hint
+
+
+@override_settings(TEMPLATES=TEMPLATES, ROOT_URLCONF="tests.urlconfs.derived")
+def test_w204_names_the_derived_partial_and_the_view():
+    messages = [m for m in run_checks(tags=["dj_fixi"]) if m.id == "dj_fixi.W204"]
+    assert sorted(m.obj.__name__ for m in messages) == ["DerivedCreate", "DerivedList"]
+    assert "partial_template = 'good/list_partial.html'" in messages[0].hint
+    assert "0.5" in messages[0].hint
+
+
+@override_settings(TEMPLATES=TEMPLATES, ROOT_URLCONF="tests.urlconfs.templates")
+def test_w201_explains_django_6_partial_syntax():
+    hints = [m.hint for m in run_checks(tags=["dj_fixi"]) if m.id == "dj_fixi.W201" and "#nope" in m.msg]
+    assert hints and ("partialdef" in hints[0] or "django-template-partials" in hints[0])

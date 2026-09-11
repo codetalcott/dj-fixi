@@ -16,6 +16,7 @@ from django.http import HttpResponse
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from .request import is_fx as _is_fx
+from .views import derived_partial_name
 
 logger = logging.getLogger(__name__)
 
@@ -188,41 +189,32 @@ class FxResponseMixin:
         """
         Return fragment templates for Fixi requests.
 
-        An explicit ``partial_template`` (from FxView, when the two are composed)
-        wins outright. Names this mixin *derives* by convention go behind it:
-        letting a guessed ``foo_partial.html`` outrank the fragment the author
-        actually named is the silent-failure shape this library exists to avoid.
-        Deriving from the explicit partial is skipped too, since it is already a
-        fragment and only produced nonsense like ``_panel_partial.html``.
+        An explicit ``partial_template`` (from FxView, when the two are composed,
+        or set directly on the view) is the whole answer: a name the author wrote
+        down must not fall through to the full page when it is missing. Without
+        one, names derived by convention (``_partial`` suffix, ``fragments/``
+        directory) are tried ahead of the originals. Derived names are
+        deprecated and go away in 0.5; ``manage.py check`` (W204) names the one
+        a view relies on so it can be written down.
         """
         if not _is_fx(self.request):
             return super().get_template_names()
 
-        original_templates = super().get_template_names()
         explicit = getattr(self, "partial_template", None)
+        if explicit:
+            return [explicit]
+
+        original_templates = super().get_template_names()
         fx_templates = []
-
         for template in original_templates:
-            if template == explicit:
-                continue
+            derived = derived_partial_name(template, self.fx_template_suffix)
+            if derived:
+                fx_templates.append(derived)
+            directory, sep, leaf = template.rpartition("/")
+            if sep and "#" not in template:
+                fx_templates.append(f"{directory}/fragments/{leaf}")
 
-            # Insert suffix before file extension
-            name_parts = template.rsplit(".", 1)
-            if len(name_parts) == 2:
-                # Skip names that already carry the suffix -- FxView derives its
-                # own "_partial" variant, and suffixing that again only produced
-                # a "_partial_partial.html" lookup that can never resolve.
-                if not name_parts[0].endswith(self.fx_template_suffix):
-                    fx_templates.append(f"{name_parts[0]}{self.fx_template_suffix}.{name_parts[1]}")
-
-            # Also try a fragments subdirectory
-            parts = template.rsplit("/", 1)
-            if len(parts) == 2:
-                fragment_template = f"{parts[0]}/fragments/{parts[1]}"
-                fx_templates.append(fragment_template)
-
-        ordered = ([explicit] if explicit else []) + fx_templates + original_templates
-        return list(dict.fromkeys(ordered))
+        return list(dict.fromkeys(fx_templates + original_templates))
 
     def form_valid(self, form) -> HttpResponse:
         """
@@ -263,17 +255,45 @@ class FxResponseMixin:
         obj = getattr(self, "object", None)
         obj_pk = getattr(obj, "pk", None)
 
-        if obj_pk is not None:
-            # Create/update: hand back the rendered fragment for swapping in.
-            detail["object_id"] = str(obj_pk)
-            rendered_form = self.get_fx_success_form(form, created=pk_before is None)
-            fx_response = self.render_to_response(self.get_context_data(form=rendered_form))
-        else:
+        if obj_pk is None:
             # Delete (or no object to render): nothing to swap.
-            if pk_before is not None:
-                detail["object_id"] = str(pk_before)
-            fx_response = HttpResponse(status=204)
+            return self._fx_deleted(pk_before)
 
+        # Create/update: hand back the rendered fragment for swapping in.
+        detail["object_id"] = str(obj_pk)
+        rendered_form = self.get_fx_success_form(form, created=pk_before is None)
+        fx_response = self.render_to_response(self.get_context_data(form=rendered_form))
+        self._trigger_fx_event(fx_response, self.fx_success_event, detail)
+        return fx_response
+
+    def delete(self, request, *args, **kwargs) -> HttpResponse:
+        """
+        Answer an HTTP ``DELETE`` the way a Fixi control expects.
+
+        Django's ``DeletionMixin.delete()`` deletes and returns a redirect
+        without going through ``form_valid``, so before 0.4.0 an
+        ``fx-method="DELETE"`` control got a 302 that fetch followed *as a
+        DELETE*, and the list view's 405 was swapped into the row. For a Fixi
+        request this deletes the object and returns the same ``204`` and
+        ``FX-Trigger`` event as the POST path; anything else defers to Django.
+        Views without a delete path (a ``CreateView``) still answer 405.
+        """
+        parent = getattr(super(), "delete", None)
+        if not callable(parent):
+            return self.http_method_not_allowed(request, *args, **kwargs)
+        if not _is_fx(request):
+            return parent(request, *args, **kwargs)
+        self.object = self.get_object()
+        pk_before = self.object.pk
+        self.object.delete()
+        return self._fx_deleted(pk_before)
+
+    def _fx_deleted(self, pk_before) -> HttpResponse:
+        """``204 No Content`` plus the success event, naming the deleted object."""
+        detail = {"message": self.get_success_message()}
+        if pk_before is not None:
+            detail["object_id"] = str(pk_before)
+        fx_response = HttpResponse(status=204)
         self._trigger_fx_event(fx_response, self.fx_success_event, detail)
         return fx_response
 
@@ -415,10 +435,14 @@ class FxResponseMixin:
         self, response: HttpResponse, event_name: str, detail: dict | None = None
     ):
         """
-        Trigger a custom Fixi event on the client.
+        Set the ``FX-Trigger`` header the ``{% fixi_events %}`` shim turns into a
+        DOM event named ``event_name`` (no prefix), dispatched after the swap.
 
-        Uses FX-Trigger header similar to HTMX's HX-Trigger.
-        Event will be dispatched as 'fx:{event_name}' on the client.
+        The shim dispatches on the element that made the request when it is
+        still in the document, otherwise on ``<body>``. A string ``detail["target"]``
+        names a CSS selector to dispatch on instead, so that key is reserved.
+        Without the shim (or an equivalent moxi ``on-fx:swapped`` handler) the
+        header does nothing: fixi core reads no response headers.
         """
         if detail:
             # Send event with detail data

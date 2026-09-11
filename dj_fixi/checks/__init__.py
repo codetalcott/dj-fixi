@@ -21,6 +21,8 @@ W001         Warning  FxMiddleware absent (advisory since 0.3.0)
 W002         Warning  No engine enables context_processors.request
 W201         Warning  A declared template name resolves to nothing
 W202         Warning  Fixi requests can only ever render the full page
+W203         Warning  A project template uses htmx attributes, which fixi ignores
+W204         Warning  A view's fragment exists only as a derived name; write it down
 E301         Error    staticfiles installed but fixi.js is unfindable
 W302         Warning  django.contrib.staticfiles is not installed
 ===========  =======  ==================================================
