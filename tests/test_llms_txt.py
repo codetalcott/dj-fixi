@@ -91,6 +91,7 @@ def test_names_documented_under_dj_fixi_are_importable(name, text):
         ("dj_fixi.testing", "fixi_check_messages"),
         ("dj_fixi.lint", "lint_html"),
         ("dj_fixi.lint", "lint_response"),
+        ("dj_fixi.lint", "lint_template_source"),
         ("dj_fixi.lint", "Finding"),
         ("dj_fixi.lint", "FINDING_IDS"),
         ("dj_fixi.attrs", "normalize_swap"),

@@ -12,6 +12,13 @@
   existed to announce this removal, is gone with it. Announced in 0.4.0 as a
   0.5 change; nothing outside this repository depended on the derivation.
 
+### Added
+
+- **`manage.py fixi_lint [paths...] [--warnings-as-errors]`**: the lint over
+  template source, without rendering; every project template directory by
+  default, never site-packages. `dj_fixi.lint.lint_template_source` and
+  `strip_template_syntax` are the functions behind it.
+
 ### Changed
 
 - **W202 is exact now.** It fires when a routed dj-fixi view declares no

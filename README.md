@@ -150,7 +150,8 @@ client.fx_get("/products/")     # a redirect here raises too: pass follow=True o
 ```
 
 Each finding names the element, the line, and the line of `fixi.js` that explains it, and
-`dj_fixi.lint.FINDING_IDS` lists them all. `FxMiddleware` logs the same findings under
+`dj_fixi.lint.FINDING_IDS` lists them all. `python manage.py fixi_lint` runs the same rules
+over template source, for a person at the command line. `FxMiddleware` logs the same findings under
 `DEBUG` and never raises. `{% fx_attrs %}` and `FxForm` refuse the same mistakes at render
 time, before there is anything to lint.
 
