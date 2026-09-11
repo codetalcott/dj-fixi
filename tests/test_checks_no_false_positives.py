@@ -78,10 +78,10 @@ def test_user_override_is_a_warning_never_an_error():
 
 
 # ------------------------------------------------------------------ 0.4.0
-# W203 (htmx in project templates) and W204 (fragment exists only as a derived
-# name). Both scan things a project may legitimately have.
+# W203 (htmx in project templates) scans files a project may legitimately have;
+# W202 (no partial_template) must stay quiet for views that render nothing.
 
-from .checks_support import GOOD_FILES, TEMPLATES_NO_PARTIAL, fs_templates  # noqa: E402
+from .checks_support import GOOD_FILES, fs_templates  # noqa: E402
 
 
 def test_w203_silent_for_clean_templates_and_htmx_inside_comments(tmp_path):
@@ -126,11 +126,10 @@ def test_w203_silent_for_a_jinja2_only_project(tmp_path):
         assert "dj_fixi.W203" not in check_ids()
 
 
-@override_settings(TEMPLATES=TEMPLATES)
-def test_w204_silent_when_the_partial_is_written_down_or_there_is_none():
-    for urlconf in ("tests.urlconfs.good", "tests.urlconfs.user_shadow", "tests.urlconfs.fbv_only"):
-        with override_settings(ROOT_URLCONF=urlconf):
-            assert "dj_fixi.W204" not in check_ids()
-    with override_settings(ROOT_URLCONF="tests.urlconfs.templates", TEMPLATES=TEMPLATES_NO_PARTIAL):
-        found = check_ids()
-        assert "dj_fixi.W202" in found and "dj_fixi.W204" not in found
+@override_settings(TEMPLATES=TEMPLATES, ROOT_URLCONF="tests.urlconfs.partial_sources")
+def test_w202_silent_for_deletes_and_for_partials_declared_at_the_urlconf():
+    """The only two views W202 must name are the ones with no partial and a page to serve."""
+    from django.core.checks import run_checks
+
+    named = sorted(m.obj.__name__ for m in run_checks(tags=["dj_fixi"]) if m.id == "dj_fixi.W202")
+    assert named == ["NoPartialCreate", "NoPartialList"]

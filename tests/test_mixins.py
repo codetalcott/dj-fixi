@@ -73,6 +73,7 @@ def test_form_valid_create_renders_fragment_and_triggers_event(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         success_url = "/done/"
 
     view = V()
@@ -126,6 +127,7 @@ def test_form_valid_non_fx_redirects(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         success_url = "/done/"
 
     request = rf.post("/", {"name": "plain"})
@@ -154,6 +156,7 @@ def test_form_invalid_returns_422_with_error_event(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         success_url = "/done/"
 
     view = V()
@@ -175,17 +178,16 @@ def test_form_invalid_returns_422_with_error_event(rf):
 # --------------------------------------------------------------------------- #
 
 
-def test_fxresponsemixin_template_names_for_fx(rf):
+def test_fxresponsemixin_without_a_partial_keeps_the_page_names(rf):
+    """Nothing is derived by convention; W202 names such a view at boot."""
+
     class V(FxResponseMixin, TemplateView):
         template_name = "products/list.html"
 
     view = V()
     view.setup(_fx(rf.get("/")))
-    names = view.get_template_names()
 
-    assert "products/list_partial.html" in names
-    assert "products/fragments/list.html" in names
-    assert "products/list.html" in names
+    assert view.get_template_names() == ["products/list.html"]
 
 
 # --------------------------------------------------------------------------- #
@@ -273,6 +275,7 @@ def test_fx_collection_reaches_the_success_fragment(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         success_url = "/done/"
         fx_collection = Group.objects.all()
 
@@ -299,6 +302,7 @@ def test_fx_collection_accepts_a_manager_and_a_callable(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         fx_collection = Group.objects
 
     class Called(Managed):
@@ -319,6 +323,7 @@ def test_fx_collection_name_defaults_to_the_listview_convention(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         fx_collection = Group.objects.all()
 
     view = V()
@@ -336,6 +341,7 @@ def test_no_fx_collection_leaves_context_untouched(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
 
     view = V()
     view.setup(_fx(rf.get("/")))
@@ -356,6 +362,7 @@ def test_success_url_falls_back_to_the_referring_page(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
 
     view = V()
     view.setup(rf.post("/add/", {"name": "x"}, HTTP_REFERER="http://testserver/notes/"))
@@ -369,6 +376,7 @@ def test_success_url_prefers_an_explicit_default_over_the_referer(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         fx_default_success_url = "/elsewhere/"
 
     view = V()
@@ -383,6 +391,7 @@ def test_success_url_still_wins_when_set(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         success_url = "/explicit/"
 
     view = V()
@@ -399,6 +408,7 @@ def test_an_offsite_referer_is_refused(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
 
     view = V()
     view.setup(rf.post("/add/", {"name": "x"}, HTTP_REFERER="https://evil.example/x"))
@@ -413,6 +423,7 @@ def test_the_fallback_can_be_switched_off(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         fx_default_success_url = False
 
     view = V()
@@ -428,6 +439,7 @@ def test_no_referer_and_no_url_still_raises(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
 
     view = V()
     view.setup(rf.post("/add/", {"name": "x"}))
@@ -449,6 +461,7 @@ def test_fx_collection_clones_a_class_level_queryset(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         fx_collection = Group.objects.all()
 
     view = V()
@@ -473,6 +486,7 @@ def test_fx_collection_accepts_a_plain_function(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         fx_collection = newest
 
     Group.objects.create(name="only")
@@ -490,6 +504,7 @@ def test_fx_collection_still_accepts_staticmethod(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
         fx_collection = staticmethod(lambda view: Group.objects.all())
 
     Group.objects.create(name="only")
@@ -542,6 +557,7 @@ def test_http_delete_on_a_view_without_a_delete_path_is_405(rf):
         model = Group
         form_class = GroupForm
         template_name = "g/form.html"
+        partial_template = "g/form_partial.html"
 
     assert V.as_view()(rf.delete("/", HTTP_FX_REQUEST="true")).status_code == 405
 

@@ -287,19 +287,6 @@ def _composed_candidates(rf):
     return view.get_template_names()
 
 
-def test_explicit_partial_template_outranks_derived_names(rf):
-    assert _composed_candidates(rf)[0] == "notes/_panel.html"
-
-
-def test_no_double_suffixed_candidate(rf):
-    assert not any("_partial_partial" in n for n in _composed_candidates(rf))
-
-
-def test_no_duplicate_candidates(rf):
-    names = _composed_candidates(rf)
-    assert len(names) == len(set(names))
-
-
 def test_an_explicit_partial_never_falls_through_to_the_page(rf):
     """0.4.0: a name the author wrote down is the whole answer for a Fixi request."""
     assert _composed_candidates(rf) == ["notes/_panel.html"]

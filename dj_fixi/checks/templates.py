@@ -11,9 +11,7 @@ import django
 from django.core.checks import Tags, Warning, register
 from django.views.generic.edit import DeletionMixin
 
-from dj_fixi.mixins import FxResponseMixin
 from dj_fixi.urlconf import iter_routed_views
-from dj_fixi.views import derived_partial_name
 
 from ._utils import PROVIDERS, fx_views, should_run
 
@@ -33,29 +31,6 @@ def _resolves(name) -> bool | None:
         # would misattribute it.
         return None
     return True
-
-
-def _partial_candidates(view_class, template_name: str) -> list[str]:
-    """
-    Every partial name dj-fixi would try for this view, derived as it does.
-
-    Deduplicated: FxView and FxResponseMixin derive the same ``_partial`` name
-    when the suffix is left at its default, and listing it twice in a hint just
-    looks like a bug.
-    """
-    candidates = []
-    derived = derived_partial_name(template_name)
-    if derived:
-        candidates.append(derived)
-    if issubclass(view_class, FxResponseMixin):
-        suffix = getattr(view_class, "fx_template_suffix", "_partial")
-        derived = derived_partial_name(template_name, suffix)
-        if derived:
-            candidates.append(derived)
-        directory, sep, leaf = template_name.rpartition("/")
-        if sep and "#" not in template_name:
-            candidates.append(f"{directory}/fragments/{leaf}")
-    return list(dict.fromkeys(candidates))
 
 
 @register("dj_fixi", Tags.templates)
@@ -121,54 +96,6 @@ def _relies_on_user_template_names(view_class) -> bool:
 
 
 @register("dj_fixi", Tags.templates)
-def check_partial_named_explicitly(app_configs=None, **kwargs):
-    """
-    A dj-fixi view whose fragment exists only as a name derived by convention.
-
-    ``products/list.html`` finding ``products/list_partial.html`` works, but
-    nobody wrote that name down, so nothing can verify it: rename the file and
-    Fixi requests silently get the page. Derived names are deprecated in 0.4
-    and removed in 0.5; this says which name to write.
-    """
-    if not should_run(app_configs):
-        return []
-
-    messages = []
-    seen = set()
-    for routed in iter_routed_views():
-        view_class = routed.view_class
-        if view_class is None or not issubclass(view_class, PROVIDERS):
-            continue
-        if view_class in seen or routed.attr("partial_template"):
-            continue
-        seen.add(view_class)
-        if issubclass(view_class, DeletionMixin) or _relies_on_user_template_names(view_class):
-            continue
-        template_name = routed.attr("template_name")
-        if not isinstance(template_name, str) or not template_name:
-            continue
-        if _resolves(template_name) is not True:
-            continue
-        hits = [c for c in _partial_candidates(view_class, template_name) if _resolves(c) is True]
-        if not hits:
-            continue  # W202's case, or a page-only view
-        messages.append(
-            Warning(
-                f"{view_class.__name__} serves {hits[0]!r} to Fixi requests only because that "
-                f"name is derived from template_name = {template_name!r}.",
-                hint=(
-                    f"Set partial_template = {hits[0]!r} on the view. Derived names still work "
-                    "in 0.4 and are removed in 0.5; a name that is written down is one W201 "
-                    "can verify and a reader can find."
-                ),
-                obj=view_class,
-                id="dj_fixi.W204",
-            )
-        )
-    return messages
-
-
-@register("dj_fixi", Tags.templates)
 def check_no_htmx_attributes(app_configs=None, **kwargs):
     """
     htmx attributes in the project's own templates.
@@ -220,11 +147,11 @@ def check_no_htmx_attributes(app_configs=None, **kwargs):
 @register("dj_fixi", Tags.templates)
 def check_a_partial_exists(app_configs=None, **kwargs):
     """
-    A dj-fixi view that can only ever render the full page.
+    A dj-fixi view that declares no ``partial_template``.
 
-    The narrowest useful form of "the fragment story was never wired up": only
-    fires when the view declares no partial, overrides nothing, and none of the
-    names dj-fixi would derive exist either.
+    Fixi requests to it get ``template_name``, the same page a browser gets,
+    swapped into the control's target. Since 0.5 nothing is derived by
+    convention, so the only way a view has a fragment is to name it.
     """
     if not should_run(app_configs):
         return []
@@ -240,43 +167,28 @@ def check_a_partial_exists(app_configs=None, **kwargs):
         seen.add(view_class)
 
         # A delete view's Fixi path returns 204 No Content from
-        # FxResponseMixin.form_valid and renders nothing at all, so warning that
-        # it "will render the full page" would be false. (Loading the
-        # confirmation into a modal via Fixi is possible but unusual; a warning
-        # that is wrong on the common case does not earn its noise.)
+        # FxResponseMixin and renders nothing at all, so warning that it "will
+        # render the full page" would be false.
         if issubclass(view_class, DeletionMixin):
             continue
-
-        # Only user code makes the candidate list unpredictable. Django's own
-        # generic mixins derive full-page names ("auth/group_list.html"), which
-        # FxView appends *after* the partial candidates, so they do not count as
-        # a fragment and must not suppress this check.
-        if any(
-            "get_template_names" in vars(k)
-            for k in view_class.__mro__
-            if not k.__module__.startswith(("django.", "dj_fixi."))
-        ):
+        if _relies_on_user_template_names(view_class):
             continue
-
         template_name = routed.attr("template_name")
         if not isinstance(template_name, str) or not template_name:
             continue
         if _resolves(template_name) is not True:
             continue  # W201's problem, not ours
 
-        candidates = _partial_candidates(view_class, template_name)
-        if not candidates or any(_resolves(c) is not False for c in candidates):
-            continue
-
+        head, sep, ext = template_name.rpartition(".")
+        suggestion = f"{head}_partial.{ext}" if sep else f"{template_name}_partial"
         messages.append(
             Warning(
-                f"Fixi requests to {view_class.__name__} will render the full page "
-                f"{template_name!r} into the swap target: no partial template exists.",
+                f"Fixi requests to {view_class.__name__} get the full page {template_name!r}: "
+                "the view declares no partial_template.",
                 hint=(
-                    f"Create one of {', '.join(repr(c) for c in candidates)}, or set "
-                    "partial_template explicitly. Add 'dj_fixi.W202' to "
-                    "SILENCED_SYSTEM_CHECKS if this view intentionally swaps a "
-                    "whole page."
+                    f"Set partial_template = {suggestion!r} (or {template_name + '#name'!r} with "
+                    "{% partialdef name %} on Django 6). If template_name is itself the fragment, "
+                    "add 'dj_fixi.W202' to SILENCED_SYSTEM_CHECKS."
                 ),
                 obj=view_class,
                 id="dj_fixi.W202",

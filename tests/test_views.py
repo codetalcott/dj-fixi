@@ -53,8 +53,8 @@ def test_fx_view_template_selection_for_fx_request(rf):
     assert view_instance.get_template_names() == ["test.html"]
 
 
-def test_fx_view_template_fallback_with_suffix(rf):
-    """Test that FxView tries _partial suffix when partial_template not set"""
+def test_fx_view_without_a_partial_serves_the_page_names(rf):
+    """Nothing is derived from template_name; W202 names such a view at boot."""
 
     class TestView(FxView):
         template_name = "test.html"
@@ -66,10 +66,7 @@ def test_fx_view_template_fallback_with_suffix(rf):
     view_instance.setup(request)
     view_instance.dispatch(request)
 
-    templates = view_instance.get_template_names()
-
-    assert "test_partial.html" in templates
-    assert "test.html" in templates
+    assert view_instance.get_template_names() == ["test.html"]
 
 
 def test_fx_view_context_includes_fx_metadata(rf):
@@ -94,24 +91,6 @@ def test_fx_view_context_includes_fx_metadata(rf):
 
 
 # ------------------------------------------------------------------ 0.4.0
-
-
-@pytest.mark.parametrize(
-    "name, expected",
-    [
-        ("products/list.html", "products/list_partial.html"),
-        ("v1.0/list.html", "v1.0/list_partial.html"),  # .replace(".html", ...) got this wrong
-        ("list.txt", "list_partial.txt"),
-        ("products/list_partial.html", None),  # already a partial
-        ("products/list.html#rows", None),  # a Django 6 partial reference stands alone
-        ("noext", None),
-        (None, None),
-    ],
-)
-def test_derived_partial_name(name, expected):
-    from dj_fixi.views import derived_partial_name
-
-    assert derived_partial_name(name) == expected
 
 
 LOCMEM = [

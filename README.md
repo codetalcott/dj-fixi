@@ -150,7 +150,8 @@ client.fx_get("/products/")     # a redirect here raises too: pass follow=True o
 ```
 
 Each finding names the element, the line, and the line of `fixi.js` that explains it, and
-`dj_fixi.lint.FINDING_IDS` lists them all. `FxMiddleware` logs the same findings under
+`dj_fixi.lint.FINDING_IDS` lists them all. `python manage.py fixi_lint` runs the same rules
+over template source, for a person at the command line. `FxMiddleware` logs the same findings under
 `DEBUG` and never raises. `{% fx_attrs %}` and `FxForm` refuse the same mistakes at render
 time, before there is anything to lint.
 
@@ -171,9 +172,8 @@ library cannot fix it — so `manage.py check` reports it at startup instead.
 | `dj_fixi.W001` | Warning | `FxMiddleware` is not installed (advisory) |
 | `dj_fixi.W002` | Warning | No template engine enables `context_processors.request` |
 | `dj_fixi.W201` | Warning | A declared `template_name`/`partial_template` resolves to nothing |
-| `dj_fixi.W202` | Warning | Fixi requests to a view can only ever render the full page |
+| `dj_fixi.W202` | Warning | A routed dj-fixi view declares no `partial_template` |
 | `dj_fixi.W203` | Warning | A project template uses htmx attributes, which fixi ignores |
-| `dj_fixi.W204` | Warning | A view's fragment exists only as a derived name; write it down |
 | `dj_fixi.E301` | Error | `staticfiles` is installed but `fixi.js` is unfindable |
 | `dj_fixi.W302` | Warning | `django.contrib.staticfiles` is not installed |
 

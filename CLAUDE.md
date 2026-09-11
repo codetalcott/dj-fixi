@@ -50,8 +50,9 @@ This project was created by adapting code from:
    - `attrs` is the one source of truth for what fixi.js accepts; the tag,
      `FxForm` and the lint all import it, and `tests/test_lint_vocabulary.py`
      pins it against the vendored `fixi.js`
-   - `lint` runs on every response `FxTestClient` fetches (raises) and in
-     `FxMiddleware` under DEBUG (logs). Every rule was written against
+   - `lint` runs on every response `FxTestClient` fetches (raises), in
+     `FxMiddleware` under DEBUG (logs), and over template source with
+     `manage.py fixi_lint`. Every rule was written against
      `tests/test_lint_no_false_positives.py` first; custom `fx-*` names are
      never flagged
 
@@ -177,5 +178,5 @@ a bug plus a note about the bug — fix the attribute instead.
 - Use `render_fx()` for simple cases, `FxView` for complex ones
 - New checks need a case in `tests/test_checks_no_false_positives.py` first
 - New lint rules need a case in `tests/test_lint_no_false_positives.py` first
-- Write the partial's name down (`partial_template`); derived names are deprecated
+- Write the partial's name down (`partial_template`); nothing is derived from `template_name`
 - Test with `FxTestClient`: it lints responses and refuses to guess about redirects

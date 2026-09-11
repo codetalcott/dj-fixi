@@ -15,6 +15,8 @@ nothing) and raises `FxLintError` naming the element, the line and the fixi.js
 line that explains it. A redirect answered to a Fixi request raises
 `FxRedirectError` until the test says `follow=True` or `follow=False`.
 
+`python manage.py fixi_lint` runs the same rules over template source.
+
 dj-fixi also ships Django system checks that catch the misconfigurations that
 would otherwise fail silently (a 200 response with the wrong body and no
 exception). Run them:
@@ -59,10 +61,11 @@ and `Vary: FX-Request` on responses dj-fixi does not build.
 
 4. **Write the partial's name down.** `partial_template = "products/list_partial.html"`,
    or on Django 6 `partial_template = "products/list.html#rows"` with
-   `{% partialdef rows %}` in the page. A name dj-fixi derives (`_partial`
-   suffix, `fragments/`) is deprecated and named by check W204; an explicit
-   name never falls through to the full page when it is missing (it raises
-   `TemplateDoesNotExist` at the first request, since 0.4.0).
+   `{% partialdef rows %}` in the page. Nothing is derived from `template_name`
+   (a `_partial` suffix or a `fragments/` directory means nothing to dj-fixi);
+   a view without `partial_template` serves its page to Fixi requests and
+   check W202 names it. An explicit name never falls through to the full page
+   when it is missing: it raises `TemplateDoesNotExist` at the first request.
 
 ## What Fixi does NOT do (do not port HTMX assumptions)
 
@@ -97,12 +100,11 @@ and `Vary: FX-Request` on responses dj-fixi does not build.
 
 ### dj_fixi.views.FxView
 
-Renders `partial_template` for Fixi requests and `template_name` otherwise. An
-explicit `partial_template` is the whole answer for a Fixi request: if it is
-missing the request raises `TemplateDoesNotExist` rather than serving the page.
-Django 6 partial syntax works: `partial_template = "products/list.html#rows"`.
-Without an explicit partial, `template_name` with `_partial` before the
-extension is tried (deprecated; W204 tells you the name to write down). Honors
+Renders `partial_template` for Fixi requests and `template_name` otherwise. The
+`partial_template` is the whole answer for a Fixi request: if it is missing the
+request raises `TemplateDoesNotExist` rather than serving the page. Django 6
+partial syntax works: `partial_template = "products/list.html#rows"`. Without
+one, Fixi requests get `template_name` and W202 says so at boot. Honors
 `response_class`, `content_type`, `template_engine`. Sets `is_fx` in the
 context. Always sets `Vary: FX-Request`.
 
@@ -123,7 +125,7 @@ for a delete, so the row can be removed by the swap); `form_invalid` returns
 the same way as a POST delete: 204 plus the event (since 0.4.0; before that
 Django's `DeletionMixin.delete()` redirected and fetch followed it as a DELETE).
 Non-Fixi requests keep Django's redirect. Configure
-with `fx_success_event`, `fx_error_event`, `fx_template_suffix`,
+with `fx_success_event`, `fx_error_event`,
 `fx_reset_form_after_create`. Composed with `FxView`, an explicit
 `partial_template` outranks every name this mixin derives by convention.
 
@@ -215,6 +217,12 @@ fixi cannot act on; warnings are things it acts on differently than you meant.
     dj_fixi.L110  fx-method/target/swap/trigger on an element without fx-action; never initialised
     dj_fixi.L111  a full HTML document answered a Fixi request
 
+    python manage.py fixi_lint [paths...] [--warnings-as-errors]
+    # the same rules over template source, without rendering; every project
+    # template directory by default, never site-packages. Page-level rules
+    # (L108, L109) stay off, since a template cannot know the page's ids.
+    lint_template_source(source, file=None, ignore=()) -> list[Finding]
+
 Custom `fx-*` names are the project's own (fx:config listeners read them) and
 are never flagged. Silence any id with `SILENCED_SYSTEM_CHECKS` or
 `FxTestClient(lint_ignore=...)`. `FxMiddleware` logs the same findings under
@@ -279,9 +287,8 @@ fixed.
     dj_fixi.W001  FxMiddleware not installed (advisory)
     dj_fixi.W002  No engine enables context_processors.request
     dj_fixi.W201  A declared template_name/partial_template resolves to nothing
-    dj_fixi.W202  Fixi requests to a view can only ever render the full page
+    dj_fixi.W202  A routed dj-fixi view declares no partial_template
     dj_fixi.W203  A project template uses htmx attributes, which fixi ignores
-    dj_fixi.W204  A view's fragment exists only as a derived name; write it down
     dj_fixi.E301  staticfiles installed but fixi.js is unfindable
     dj_fixi.W302  django.contrib.staticfiles is not installed
 

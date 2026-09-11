@@ -49,6 +49,8 @@ __all__ = [
     "template_directories",
     "iter_template_files",
     "htmx_attributes_in_source",
+    "lint_template_source",
+    "strip_template_syntax",
 ]
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
@@ -508,3 +510,53 @@ def htmx_attributes_in_source(source: str) -> list[str]:
     """Distinct htmx attribute names written in template source, comments excluded."""
     stripped = _TEMPLATE_COMMENT.sub("", source)
     return sorted(set(_HTMX_IN_SOURCE.findall(stripped)))
+
+
+# ------------------------------------------------------------ template source
+
+_VAR = "{{VAR}}"  # what a computed value becomes; rules skip values containing "{{"
+_BLOCK_TAGS = re.compile(
+    r"^(?:if|elif|else|endif|for|empty|endfor|block|endblock|extends|load|with|endwith|"
+    r"spaceless|endspaceless|autoescape|endautoescape|verbatim|endverbatim|include|"
+    r"blocktrans(?:late)?|endblocktrans(?:late)?|filter|endfilter|ifchanged|endifchanged|"
+    r"partialdef|endpartialdef|partial|regroup|cycle|resetcycle|debug|templatetag|lorem)\b"
+)
+_FX_ATTRS_TAG = re.compile(r"\{%\s*fx_attrs\b.*?%\}", re.S)
+_TAG = re.compile(r"\{%.*?%\}", re.S)
+_EXPR = re.compile(r"\{\{.*?\}\}", re.S)
+
+
+def _keep_lines(match, filler: str) -> str:
+    return "\n" * match.group(0).count("\n") + filler
+
+
+def strip_template_syntax(source: str) -> str:
+    """
+    Django template source as HTML the parser can read, line numbers intact.
+
+    Comments go. ``{% fx_attrs ... %}`` becomes an ``fx-action`` with a computed
+    value, so the element counts as a control and the rules do not judge what
+    the tag will emit (the tag validates that itself at render). Every other
+    ``{{ }}`` and value-producing tag (``{% url %}``, ``{% static %}``, custom
+    tags) becomes a computed value; block tags become whitespace.
+    """
+    source = _TEMPLATE_COMMENT.sub(lambda m: _keep_lines(m, ""), source)
+    source = _FX_ATTRS_TAG.sub(lambda m: _keep_lines(m, f' fx-action="{_VAR}" '), source)
+    source = _EXPR.sub(lambda m: _keep_lines(m, _VAR), source)
+
+    def tag(m):
+        body = m.group(0)[2:-2].strip()
+        return _keep_lines(m, " " if _BLOCK_TAGS.match(body) else _VAR)
+
+    return _TAG.sub(tag, source)
+
+
+def lint_template_source(source: str, file: str | None = None, ignore: Iterable[str] = ()) -> list[Finding]:
+    """
+    Findings for one template's source, without rendering it.
+
+    Static, so page-level rules stay off: a template that extends a layout
+    cannot know which ids the page will have. The test client lints rendered
+    responses; this is for a person at the command line (``manage.py fixi_lint``).
+    """
+    return lint_html(strip_template_syntax(source), full_document=False, is_fx=None, ignore=ignore, file=file)
