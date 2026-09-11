@@ -46,6 +46,7 @@ class ProductCreateView(FxResponseMixin, CreateView):
 
     model = Product
     template_name = "products/form.html"
+    partial_template = "products/form_partial.html"
     fields = ["name", "description", "price", "stock", "is_active"]
     success_url = reverse_lazy("product_list")
 
@@ -55,6 +56,7 @@ class ProductUpdateView(FxResponseMixin, UpdateView):
 
     model = Product
     template_name = "products/form.html"
+    partial_template = "products/form_partial.html"
     fields = ["name", "description", "price", "stock", "is_active"]
     success_url = reverse_lazy("product_list")
 

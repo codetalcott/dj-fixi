@@ -300,8 +300,9 @@ def test_no_duplicate_candidates(rf):
     assert len(names) == len(set(names))
 
 
-def test_full_page_still_last(rf):
-    assert _composed_candidates(rf)[-1] == "notes/note_list.html"
+def test_an_explicit_partial_never_falls_through_to_the_page(rf):
+    """0.4.0: a name the author wrote down is the whole answer for a Fixi request."""
+    assert _composed_candidates(rf) == ["notes/_panel.html"]
 
 
 def test_non_fixi_requests_are_untouched(rf):

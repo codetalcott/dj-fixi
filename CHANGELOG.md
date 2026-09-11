@@ -1,5 +1,94 @@
 # Changelog
 
+## 0.4.0 — what hx-flask taught
+
+The handler-first htmx 4 work in hx-flask found failure shapes dj-fixi shares.
+This release ports the ones that transfer to Fixi, in the usual order: delete
+the dependency, else fail at the first deterministic moment, else check at
+boot, else document. Every rule in the new lint was written against correct
+Fixi code first (`tests/test_lint_no_false_positives.py`), and each names the
+line of `fixi.js` it comes from.
+
+### Breaking changes
+
+- **`{% fixi_events %}` fires `FX-Trigger` events after the swap**, not before.
+  The shim now listens on `fx:swapped` (fixi re-sends it on `document` when the
+  requesting element is gone), so a handler can see the swapped-in DOM; the
+  documented gotcha that it could not is gone. Events are dispatched on the
+  element that made the request if it is still in the document, otherwise on
+  `<body>` (never on `document`), and a string `target` key in the detail names
+  a selector to dispatch on instead, so that key is reserved. A listener
+  attached to the requesting element itself will miss events after an
+  `outerHTML` swap; listen on `document`. Events are not fired when the swap
+  throws (unknown `fx-swap`), which the shim now reports in the console.
+- **`FxTestClient` lints every `text/html` response** and raises `FxLintError`
+  on an error-level finding; warnings are `FxLintWarning`. Pass `lint=False`
+  or `lint_ignore=(...)` to a client, or list ids in `SILENCED_SYSTEM_CHECKS`.
+- **`FxTestClient.fx_*` raise `FxRedirectError` on a 3xx** unless the call
+  says `follow=True` (what the browser would swap in) or `follow=False` (the
+  redirect itself). fixi's fetch follows redirects; the test has to choose.
+- **`{% fx_attrs %}` raises** on a `trigger` containing spaces or commas, a
+  `method` fetch() refuses (CONNECT, TRACE, TRACK), and an empty `action`.
+  `FxForm.render_attrs()` raises `ValueError` for the same, and now normalizes
+  `swap` the way the tag does.
+- **An explicit `partial_template` never falls through to the page.** For a
+  Fixi request it is the only candidate; a missing file raises
+  `TemplateDoesNotExist` at the first request instead of swapping the page into
+  a div. W201 still reports it at boot.
+
+### Fixed
+
+- **`fx-method="DELETE"` works.** Django's `DeletionMixin.delete()` deletes and
+  redirects without calling `form_valid`, so an HTTP DELETE from a Fixi
+  control got a 302 that fetch followed *as a DELETE* and the list view's 405
+  was swapped into the row. `FxResponseMixin.delete()` now answers a Fixi
+  DELETE with the same 204 and `FX-Trigger` as the POST path. `delete` joined
+  the hooks E101 checks. The demo's Delete button is an HTTP DELETE again.
+- The derived `_partial` name replaced the first `.html` anywhere in the path
+  (`v1.0/list.html` broke). `derived_partial_name()` uses the extension, and
+  derives nothing from a Django 6 `file.html#partial` reference.
+- The 0.3.0 entry said `fx-action=""` resolves to the current URL. fixi reads
+  attributes with `||`, so it is `fetch(undefined)`: a request to `./undefined`.
+
+### Added
+
+- **`dj_fixi.lint`**: `lint_html`, `lint_response`, `Finding`, `FINDING_IDS`
+  (`dj_fixi.L101` to `L111`). htmx attributes with the Fixi translation, typos
+  of the four control attributes, swap spelled in the wrong case, swap with
+  modifiers or an htmx style, trigger with modifiers, a method fetch refuses,
+  an empty action, a target that matches nothing on the page, a targeted id
+  that appears twice, control attributes without `fx-action`, a full document
+  answering a Fixi request. Custom `fx-*` attributes are never flagged
+  (`fx:config` listeners read them; dj-fixi-tables emits thirteen).
+- **`dj_fixi.attrs`**: the vocabulary and the validators the tag, `FxForm` and
+  the lint share, pinned against the vendored `fixi.js` by
+  `tests/test_lint_vocabulary.py`.
+- **Console guards in `fixi-events.js`**: an `fx-target` that matches nothing
+  (fixi swaps into the element itself), a swap fixi cannot perform (instead of
+  `Uncaught (in promise) outerhtml`), and the error fixi swallows on a failed
+  request. Each is fixi's own predicate evaluated on the real DOM.
+- **`FxMiddleware` under `DEBUG`** logs lint findings for every Fixi response,
+  a redirect fetch would follow into a fragment (a DELETE/PUT/PATCH answered
+  with a 3xx, or `APPEND_SLASH`'s fix-up), and the template each Fixi response
+  came from, also sent as `X-FX-Template`. It never raises. `render_fx` sets
+  the header too.
+- **`FxTestClient.fx_put`**, and `response.fx_findings` on every response.
+- **`dj_fixi.W203`**: a project template (never site-packages) uses htmx
+  attributes; silent when django-htmx is installed. **`dj_fixi.W204`**: a
+  routed view serves its fragment only through a derived name; the hint is the
+  line to write. W201's hint explains Django 6 partial syntax.
+- `partial_template = "products/list.html#rows"` documented (Django 6 native;
+  older Django needs django-template-partials, and W201 says so).
+- `tests/test_browser.py`: the shim under Playwright, opt-in (`pip install
+  playwright`, `playwright install chromium`).
+
+### Deprecated
+
+- Derived partial names (`_partial` suffix, `fragments/` directory,
+  `fx_template_suffix`). They still work; W204 names the one to write down.
+  0.5.0 removes them.
+
+
 ## 0.3.0 — silent failures
 
 An audit catalogued 47 configurations that produced wrong behavior with no

@@ -1,16 +1,23 @@
 # dj-fixi
 
 Django integration for Fixi.js. Server renders HTML; Fixi swaps it into the DOM.
-Version 0.3.0. Requires Django >= 4.2, Python >= 3.10. MIT.
+Version 0.4.0. Requires Django >= 4.2, Python >= 3.10. MIT.
 
 Read this before writing dj-fixi code. It is complete; you should not need to
 read the source.
 
 ## Verify your work
 
-dj-fixi ships Django system checks that catch the misconfigurations that would
-otherwise fail silently (a 200 response with the wrong body and no exception).
-Run them:
+Use `dj_fixi.testing.FxTestClient` in tests. It lints every `text/html`
+response it fetches for what fixi.js would silently ignore (htmx attributes,
+a swap spelled `outerhtml`, a trigger with modifiers, a target that matches
+nothing) and raises `FxLintError` naming the element, the line and the fixi.js
+line that explains it. A redirect answered to a Fixi request raises
+`FxRedirectError` until the test says `follow=True` or `follow=False`.
+
+dj-fixi also ships Django system checks that catch the misconfigurations that
+would otherwise fail silently (a 200 response with the wrong body and no
+exception). Run them:
 
     python manage.py check
 
@@ -50,6 +57,13 @@ and `Vary: FX-Request` on responses dj-fixi does not build.
    `getattr(request, "is_fx", False)`: that default silently means "not a Fixi
    request" forever when the middleware is absent.
 
+4. **Write the partial's name down.** `partial_template = "products/list_partial.html"`,
+   or on Django 6 `partial_template = "products/list.html#rows"` with
+   `{% partialdef rows %}` in the page. A name dj-fixi derives (`_partial`
+   suffix, `fragments/`) is deprecated and named by check W204; an explicit
+   name never falls through to the full page when it is missing (it raises
+   `TemplateDoesNotExist` at the first request, since 0.4.0).
+
 ## What Fixi does NOT do (do not port HTMX assumptions)
 
 - Fixi sends exactly one custom request header, `FX-Request: true`. There is no
@@ -58,7 +72,7 @@ and `Vary: FX-Request` on responses dj-fixi does not build.
 - **Fixi core reads no response headers.** The `FX-Trigger` header dj-fixi sets
   on form success/error does nothing unless you also load the shim:
   `{% fixi_events %}` after `{% fixi_js %}`, or an equivalent moxi.js
-  `on-fx:after` handler.
+  `on-fx:swapped` handler.
 - Fixi's default swap is `outerHTML`, not HTMX's `innerHTML`.
 - Fixi submits FormData (form-encoded), never JSON.
 - There is no history, no indicators, no out-of-band swaps. Use HTMX with
@@ -74,12 +88,23 @@ and `Vary: FX-Request` on responses dj-fixi does not build.
     FxMiddleware
     render_fx(request, fragment_template, page_template=None, context=None, **kw)
 
+### dj_fixi.attrs (one source of truth for what fixi.js accepts)
+
+    FX_ATTRIBUTES, SWAP_VALUES
+    normalize_swap(v), validate_trigger(v), validate_method(v), validate_action(v)
+    # each returns what fixi will act on or raises ValueError saying what fixi
+    # would have done; {% fx_attrs %}, FxForm and dj_fixi.lint all use them
+
 ### dj_fixi.views.FxView
 
-Renders `partial_template` for Fixi requests and `template_name` otherwise. Also
-tries `template_name` with `_partial` before the extension. Honors
-`response_class`, `content_type`, `template_engine`. Sets `is_fx` in the context.
-Always sets `Vary: FX-Request`.
+Renders `partial_template` for Fixi requests and `template_name` otherwise. An
+explicit `partial_template` is the whole answer for a Fixi request: if it is
+missing the request raises `TemplateDoesNotExist` rather than serving the page.
+Django 6 partial syntax works: `partial_template = "products/list.html#rows"`.
+Without an explicit partial, `template_name` with `_partial` before the
+extension is tried (deprecated; W204 tells you the name to write down). Honors
+`response_class`, `content_type`, `template_engine`. Sets `is_fx` in the
+context. Always sets `Vary: FX-Request`.
 
     class ProductList(FxView, ListView):
         model = Product
@@ -94,7 +119,10 @@ Always sets `Vary: FX-Request`.
 `FxResponseMixin` — for CreateView/UpdateView/DeleteView. On a Fixi request,
 `form_valid` renders the fragment and sets an `FX-Trigger` header (or returns 204
 for a delete, so the row can be removed by the swap); `form_invalid` returns
-**422** with the fragment. Non-Fixi requests keep Django's redirect. Configure
+**422** with the fragment. An HTTP `DELETE` (`fx-method="DELETE"`) is answered
+the same way as a POST delete: 204 plus the event (since 0.4.0; before that
+Django's `DeletionMixin.delete()` redirected and fetch followed it as a DELETE).
+Non-Fixi requests keep Django's redirect. Configure
 with `fx_success_event`, `fx_error_event`, `fx_template_suffix`,
 `fx_reset_form_after_create`. Composed with `FxView`, an explicit
 `partial_template` outranks every name this mixin derives by convention.
@@ -114,6 +142,9 @@ otherwise, adds `is_fx` to the context, and sets `Vary`.
     def product_list(request):
         return render_fx(request, "products/list_partial.html",
                          "products/list.html", {"products": Product.objects.all()})
+
+Under `DEBUG`, `render_fx` and `FxMiddleware` put the template a Fixi response
+came from in an `X-FX-Template` response header.
 
 ### dj_fixi.forms
 
@@ -137,7 +168,10 @@ must supply the token yourself, or the POST is rejected.
 values: innerHTML, outerHTML, textContent, innerText, beforebegin, afterbegin,
 beforeend, afterend, none, morph (morph needs paxi.js). Case is normalized;
 anything else raises TemplateSyntaxError, because fixi throws on an unknown swap
-and the page silently does not change.
+and the page silently does not change. Since 0.4.0 the tag also raises on a
+`trigger` with spaces or commas (fixi waits for an event named exactly that),
+a `method` fetch() refuses, and an empty `action` (fixi fetches `./undefined`;
+the usual cause is a misspelled template variable). `FxForm` validates the same.
 
 Unsafe requests need CSRF. Attach it once per page:
 
@@ -147,9 +181,44 @@ Unsafe requests need CSRF. Attach it once per page:
 
 ### dj_fixi.testing
 
-    FxTestClient            # .fx_get/.fx_post/.fx_patch/.fx_delete, form-encoded
+    FxTestClient(lint=True, lint_ignore=())
+        .fx_get/.fx_post/.fx_put/.fx_patch/.fx_delete(url, ..., follow=None)
+        # form-encoded bodies, FX-Request: true. Every text/html response, from
+        # plain .get() too, is linted: errors raise FxLintError, warnings are
+        # FxLintWarning, all findings sit on response.fx_findings.
+        # follow=None (default) raises FxRedirectError on a 3xx: fixi's fetch
+        # follows redirects and the browser never sees them. follow=True gives
+        # what the browser would swap in; follow=False the redirect itself.
+    FxRedirectError, FxLintError, FxLintWarning
     assert_no_fixi_check_issues(*, include_warnings=True)
     fixi_check_messages(*, include_warnings=True)
+
+### dj_fixi.lint
+
+    lint_html(html, *, full_document=None, is_fx=None, ignore=()) -> list[Finding]
+    lint_response(response, *, ignore=()) -> list[Finding]
+    Finding(id, level, message, line, column, element, fixi_line)
+    FINDING_IDS   # every id below with its one-line meaning
+
+Findings, each tied to the fixi.js line that explains it. Errors are things
+fixi cannot act on; warnings are things it acts on differently than you meant.
+
+    dj_fixi.L101  htmx attribute (hx-get, hx-target, ...); the message says what to write instead
+    dj_fixi.L102  fx-* attribute that looks like a typo of fx-target/swap/trigger/method
+    dj_fixi.L103  fx-swap spelled in the wrong case (outerhtml); fixi throws, nothing swaps
+    dj_fixi.L104  fx-swap with modifiers or an htmx style (delete, outerMorph)
+    dj_fixi.L105  fx-trigger with spaces or commas; fixi waits for that literal event name
+    dj_fixi.L106  fx-method fetch() refuses (CONNECT, TRACE, TRACK)
+    dj_fixi.L107  fx-action=""; fixi fetches ./undefined
+    dj_fixi.L108  fx-target that matches nothing on the page; fixi swaps into the element itself
+    dj_fixi.L109  an id an fx-target points at appears twice; fixi takes the first
+    dj_fixi.L110  fx-method/target/swap/trigger on an element without fx-action; never initialised
+    dj_fixi.L111  a full HTML document answered a Fixi request
+
+Custom `fx-*` names are the project's own (fx:config listeners read them) and
+are never flagged. Silence any id with `SILENCED_SYSTEM_CHECKS` or
+`FxTestClient(lint_ignore=...)`. `FxMiddleware` logs the same findings under
+`DEBUG` (logger `dj_fixi.middleware`) and never raises.
 
 ### dj_fixi.urlconf (public; used by dj-fixi-tables)
 
@@ -177,13 +246,20 @@ fixed.
   204 only when there is no object left to render, i.e. a delete.
 - **Fixi swaps on any status.** There is no status check in fixi.js, so a 422
   body really does render into the page.
-- **`fx:after` fires BEFORE the swap.** The `{% fixi_events %}` shim listens
-  there, so a handler for a `FX-Trigger` event cannot see the swapped-in DOM.
-  Use `fx:swapped` for anything that touches the new nodes.
+- **FX-Trigger events fire after the swap** (since 0.4.0), on the element that
+  made the request if it is still in the document, otherwise on `<body>`; a
+  string `target` key in the event's detail names a selector to dispatch on
+  instead, so that key is reserved. Listen on `document`. The shim also logs to
+  the console the three things fixi swallows: an `fx-target` that matches
+  nothing, a swap fixi cannot perform, and a failed request.
 - **A successful create returns a blank form; an update keeps its values.**
   You do not need to reset the form yourself. Switch it off with
   `fx_reset_form_after_create = False`, or override `get_fx_success_form(form,
   created)` when the form's constructor needs arguments.
+- **A redirect answered to a Fixi request is followed by fetch, silently.** The
+  redirect target's response lands in the control's target; a 301/302 turns a
+  POST into a GET and keeps a DELETE a DELETE. `FxTestClient` refuses to guess
+  (pass `follow=`), and the middleware logs the harmful cases under `DEBUG`.
 - **`success_url` is still required for the browser path.** `form_valid`
   delegates to Django, which builds a redirect. Since 0.3.0 the Fixi path no
   longer fails when that redirect cannot be built, but a non-Fixi POST to the
@@ -204,6 +280,8 @@ fixed.
     dj_fixi.W002  No engine enables context_processors.request
     dj_fixi.W201  A declared template_name/partial_template resolves to nothing
     dj_fixi.W202  Fixi requests to a view can only ever render the full page
+    dj_fixi.W203  A project template uses htmx attributes, which fixi ignores
+    dj_fixi.W204  A view's fragment exists only as a derived name; write it down
     dj_fixi.E301  staticfiles installed but fixi.js is unfindable
     dj_fixi.W302  django.contrib.staticfiles is not installed
 

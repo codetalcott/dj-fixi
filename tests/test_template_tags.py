@@ -108,3 +108,52 @@ def test_fixi_cdn_points_at_real_package():
 
     assert "<script" in rendered
     assert "the-fixi-project" in rendered
+
+
+# ------------------------------------------------------------- validation (0.4.0)
+
+
+def render_tag(tag, context=None):
+    from django.template import Context, Template
+
+    return Template("{% load fixi_tags %}" + tag).render(Context(context or {}))
+
+
+def test_fx_attrs_rejects_a_trigger_with_htmx_modifiers():
+    """fixi.js hands fx-trigger to addEventListener verbatim; 'keyup delay:200ms' never fires."""
+    from django.template import TemplateSyntaxError
+
+    with pytest.raises(TemplateSyntaxError, match="not one event name"):
+        render_tag("{% fx_attrs action='/t' trigger='keyup delay:200ms' %}")
+    with pytest.raises(TemplateSyntaxError):
+        render_tag("{% fx_attrs action='/t' trigger='click, change' %}")
+
+
+def test_fx_attrs_accepts_a_namespaced_trigger():
+    """Colons are legitimate: fx:swapped is a real event name."""
+    assert 'fx-trigger="fx:swapped"' in render_tag("{% fx_attrs action='/t' trigger='fx:swapped' %}")
+
+
+def test_fx_attrs_rejects_methods_fetch_refuses_and_keeps_the_rest():
+    from django.template import TemplateSyntaxError
+
+    with pytest.raises(TemplateSyntaxError, match="fetch\\(\\) refuses"):
+        render_tag("{% fx_attrs action='/t' method='TRACE' %}")
+    assert 'fx-method="HEAD"' in render_tag("{% fx_attrs action='/t' method='head' %}")
+
+
+def test_fx_attrs_rejects_an_empty_action():
+    """A misspelled variable renders as '' and fixi would fetch ./undefined."""
+    from django.template import TemplateSyntaxError
+
+    with pytest.raises(TemplateSyntaxError, match="undefined"):
+        render_tag("{% fx_attrs action=missing_variable %}")
+    # Omitting action entirely is fine: the element may carry fx-action itself.
+    assert 'fx-method="POST"' in render_tag("{% fx_attrs method='POST' %}")
+
+
+def test_swap_values_come_from_the_shared_vocabulary():
+    from dj_fixi import attrs
+    from dj_fixi.templatetags import fixi_tags
+
+    assert fixi_tags.SWAP_VALUES is attrs.SWAP_VALUES

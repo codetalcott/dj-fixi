@@ -496,3 +496,61 @@ def test_fx_collection_still_accepts_staticmethod(rf):
     view = V()
     view.setup(_fx(rf.get("/")))
     assert [g.name for g in view.get_fx_collection()] == ["only"]
+
+
+# ------------------------------------------------------------------ 0.4.0
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_http_delete_answers_a_fixi_control_with_204(rf):
+    """DeletionMixin.delete() redirects without form_valid; fetch followed it as a DELETE."""
+    grp = Group.objects.create(name="gone")
+    pk = grp.pk
+
+    class V(FxResponseMixin, DeleteView):
+        model = Group
+        template_name = "g/confirm.html"
+        success_url = "/done/"
+
+    response = V.as_view()(rf.delete("/", HTTP_FX_REQUEST="true"), pk=pk)
+
+    assert response.status_code == 204
+    assert not Group.objects.filter(pk=pk).exists()
+    assert json.loads(response["FX-Trigger"])["formSuccess"]["object_id"] == str(pk)
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_http_delete_from_a_browser_keeps_djangos_redirect(rf):
+    grp = Group.objects.create(name="gone")
+
+    class V(FxResponseMixin, DeleteView):
+        model = Group
+        success_url = "/done/"
+
+    response = V.as_view()(rf.delete("/"), pk=grp.pk)
+
+    assert (response.status_code, response["Location"]) == (302, "/done/")
+    assert not Group.objects.filter(pk=grp.pk).exists()
+
+
+@override_settings(TEMPLATES=LOCMEM_TEMPLATES)
+@pytest.mark.django_db
+def test_http_delete_on_a_view_without_a_delete_path_is_405(rf):
+    class V(FxResponseMixin, CreateView):
+        model = Group
+        form_class = GroupForm
+        template_name = "g/form.html"
+
+    assert V.as_view()(rf.delete("/", HTTP_FX_REQUEST="true")).status_code == 405
+
+
+def test_fxresponsemixin_explicit_partial_is_the_whole_answer(rf):
+    class V(FxResponseMixin, TemplateView):
+        template_name = "products/list.html"
+        partial_template = "products/rows.html"
+
+    view = V()
+    view.setup(_fx(rf.get("/")))
+    assert view.get_template_names() == ["products/rows.html"]

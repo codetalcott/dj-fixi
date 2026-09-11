@@ -46,6 +46,15 @@ This project was created by adapting code from:
    - Built on [dj_fixi/urlconf.py](dj_fixi/urlconf.py), a defensive URLconf walk
      that is public API (dj-fixi-tables reuses it) and never raises
 
+8. **Vocabulary and lint** ([dj_fixi/attrs.py](dj_fixi/attrs.py), [dj_fixi/lint.py](dj_fixi/lint.py))
+   - `attrs` is the one source of truth for what fixi.js accepts; the tag,
+     `FxForm` and the lint all import it, and `tests/test_lint_vocabulary.py`
+     pins it against the vendored `fixi.js`
+   - `lint` runs on every response `FxTestClient` fetches (raises) and in
+     `FxMiddleware` under DEBUG (logs). Every rule was written against
+     `tests/test_lint_no_false_positives.py` first; custom `fx-*` names are
+     never flagged
+
 ## Fixi.js vs HTMX
 
 ### Fixi.js
@@ -140,7 +149,8 @@ If adapting HTMX code to Fixi:
    ```
    Fixi core reads **no** response headers, so `FX-Trigger` is inert on its own.
    Add `{% fixi_events %}` after `{% fixi_js %}`, or write the equivalent moxi.js
-   `on-fx:after` handler. Without one of those, this header does nothing.
+   `on-fx:swapped` handler. Without one of those, this header does nothing. The
+   shim fires after the swap, on the requesting element or `<body>`.
 
 ## Design principle
 
@@ -166,3 +176,6 @@ a bug plus a note about the bug — fix the attribute instead.
 - Fixi.js must be included in base templates
 - Use `render_fx()` for simple cases, `FxView` for complex ones
 - New checks need a case in `tests/test_checks_no_false_positives.py` first
+- New lint rules need a case in `tests/test_lint_no_false_positives.py` first
+- Write the partial's name down (`partial_template`); derived names are deprecated
+- Test with `FxTestClient`: it lints responses and refuses to guess about redirects

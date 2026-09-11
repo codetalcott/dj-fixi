@@ -2,7 +2,7 @@
 
 from django.contrib.auth.models import Group
 from django.http import HttpResponse
-from django.views.generic import CreateView, ListView
+from django.views.generic import CreateView, DeleteView, ListView
 
 from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin, OptimizedQueryMixin
 from dj_fixi.shortcuts import render_fx
@@ -25,6 +25,7 @@ class GoodCreate(FxResponseMixin, CreateView):
     model = Group
     fields = ["name"]
     template_name = TEMPLATE
+    partial_template = PARTIAL
     success_url = "/"
 
 
@@ -104,6 +105,39 @@ class MissingPartial(FxView, ListView):
 class NoPartialAnywhere(FxView, ListView):
     model = Group
     template_name = TEMPLATE
+
+
+class MissingHashPartial(FxView, ListView):
+    """Django 6 partial syntax naming a partial the template does not define."""
+
+    model = Group
+    template_name = TEMPLATE
+    partial_template = "good/list.html#nope"
+
+
+# ------------------------- derived partial names (W204) -------------------- #
+
+
+class DerivedList(FxView, ListView):
+    """Serves good/list_partial.html only because dj-fixi derives the name."""
+
+    model = Group
+    template_name = TEMPLATE
+
+
+class DerivedCreate(FxResponseMixin, CreateView):
+    model = Group
+    fields = ["name"]
+    template_name = TEMPLATE
+    success_url = "/"
+
+
+class DerivedDelete(FxResponseMixin, DeleteView):
+    """Renders nothing for Fixi (204), so no partial is expected of it."""
+
+    model = Group
+    template_name = TEMPLATE
+    success_url = "/"
 
 
 class NoTemplate(FxTemplateView):

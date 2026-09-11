@@ -23,6 +23,9 @@ COOPERATIVE_HOOKS = (
     "get_queryset",
     "form_valid",
     "form_invalid",
+    # FxResponseMixin.delete answers an HTTP DELETE with 204 for Fixi requests;
+    # behind DeletionMixin it never runs and the row gets a followed redirect.
+    "delete",
     # FxResponseMixin.get_success_url falls back when Django raises
     # ImproperlyConfigured. Behind ModelFormMixin, which does not call super(),
     # that fallback is dead and the view raises again -- silently, in the sense
