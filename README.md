@@ -233,4 +233,5 @@ which builds on `dj-fixi`.
 
 ## License
 
-MIT
+MIT. The vendored `dj_fixi/static/dj_fixi/fixi.js` is Fixi.js, by Big Sky
+Software, under the Zero-Clause BSD license.
