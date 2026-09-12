@@ -15,8 +15,10 @@ Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi) - a lig
 
 ## Installation
 
+Not on PyPI yet. Install from this repository:
+
 ```bash
-pip install dj-fixi
+pip install git+https://github.com/codetalcott/dj-fixi.git
 ```
 
 ## Quick Start
@@ -93,9 +95,9 @@ with neither answers `405` forever.
 
 ## Architecture
 
-Adapted from:
-- [django-mod](https://github.com/...) - HypermediaView and middleware patterns
-- [python-modules/crud](https://github.com/...) - CRUD mixins and renderers
+Adapted from two of the author's unpublished projects: `django-mod`, for the
+HypermediaView and middleware patterns, and `python-modules/crud`, for the CRUD
+mixins and renderers.
 
 ### Key Differences: HTMX vs Fixi
 
@@ -218,8 +220,8 @@ class ProductListView(ListView, FxView):   # dj_fixi.E101
 
 `dj-fixi` deliberately stays small — it's the request/response/template adapter for
 Fixi. Declarative, inline-editable tables (server-rendered, with Fixi row swaps) live
-in a separate companion package, **[dj-fixi-tables](https://github.com/codetalcott/dj-fixi-tables)**,
-which builds on `dj-fixi`.
+in a separate companion package, **dj-fixi-tables**, which builds on `dj-fixi`.
+That package is not published yet.
 
 > Earlier releases shipped two half-finished table systems (a server-rendered
 > `ModelTable` and a JSON `FxCRUDView` for a client plugin). Both were removed in favor

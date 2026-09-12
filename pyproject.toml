@@ -4,10 +4,17 @@ version = "0.4.0"
 description = "Django integration for Fixi.js - server-side rendering with hypermedia"
 authors = [{name = "William Talcott"}]
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
     "django>=4.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/codetalcott/dj-fixi"
+Source = "https://github.com/codetalcott/dj-fixi"
+Changelog = "https://github.com/codetalcott/dj-fixi/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 browser = ["playwright"]

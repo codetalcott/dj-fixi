@@ -7,8 +7,8 @@ This file provides guidance to Claude Code when working with the dj-fixi reposit
 **dj-fixi** is a Django integration library for Fixi.js - a lightweight HTMX alternative for server-side rendering with hypermedia.
 
 This project was created by adapting code from:
-- [django-mod](../django-mod/) - HypermediaView and middleware patterns
-- [python-modules/crud](../python-modules/crud/) - CRUD mixins and table renderers
+- `django-mod` (unpublished) - HypermediaView and middleware patterns
+- `python-modules/crud` (unpublished) - CRUD mixins and table renderers
 
 ## Architecture
 
