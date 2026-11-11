@@ -1,0 +1,80 @@
+{% load fixi_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pitfalls - dj-fixi Demo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        body { max-width: 72rem; }
+        .pitfall { border-top: 1px solid #8884; padding: 1.5rem 0; }
+        .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 48rem) { .sides { grid-template-columns: 1fr; } }
+        .side { border: 1px solid #8884; border-radius: .5rem; padding: 1rem; min-width: 0; }
+        .side h3 { margin-top: 0; font-size: 1rem; }
+        .live { min-height: 4rem; }
+        .out { display: block; margin-top: .5rem; max-height: 14rem; overflow: auto; }
+        div.out:not(:empty) { border: 1px dashed #8888; padding: .5rem; }
+        pre { font-size: .8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+        iframe { width: 100%; height: 9rem; border: 1px dashed #8888; }
+        .caught { font-size: .9rem; }
+    </style>
+    {% fixi_js %}
+    {% fixi_events %}
+</head>
+<body>
+    <nav><a href="{% url 'product_list' %}">Products</a> · <strong>Pitfalls</strong></nav>
+    <h1>Pitfalls</h1>
+    <p>
+        Seven mistakes that are easy to make with Fixi and Django. Each is live, twice: the
+        naive version on the left really is broken, and the version on the right is what
+        dj-fixi has you write instead. Try both.
+    </p>
+
+    {% for row in rows %}
+    <section class="pitfall" id="{{ row.pitfall.slug }}">
+        <h2>{{ forloop.counter }}. {{ row.pitfall.title }}</h2>
+        <p>{{ row.pitfall.problem }}</p>
+        <div class="sides">
+            <div class="side naive" id="{{ row.pitfall.slug }}-naive">
+                <h3>Naive</h3>
+                <div class="live">{{ row.naive_html|safe }}</div>
+                <pre><code>{{ row.pitfall.naive }}</code></pre>
+            </div>
+            <div class="side fixed" id="{{ row.pitfall.slug }}-fixed">
+                <h3>With dj-fixi</h3>
+                <div class="live">{{ row.fixed_html|safe }}</div>
+                <pre><code>{{ row.pitfall.fixed }}</code></pre>
+            </div>
+        </div>
+        <p class="caught"><strong>The fix:</strong> {{ row.pitfall.fix }}</p>
+        <p class="caught"><strong>How it gets caught:</strong> {{ row.pitfall.caught_by }}</p>
+        {% if row.findings %}
+        <details class="findings">
+            <summary>What the lint says about the naive markup above</summary>
+            <ul>
+                {% for finding in row.findings %}<li><code>{{ finding.id }}</code> {{ finding.message }}</li>{% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+    </section>
+    {% endfor %}
+
+    <p id="events-heard">formSuccess events heard on this page: <span id="events-count">0</span></p>
+
+    <script>
+        // The fix for "Cancel that does not cancel": fixi awaits cfg.confirm.
+        // Deliberately NOT here: a global X-CSRFToken header. Pitfall 7 is about
+        // what happens without one.
+        document.addEventListener("fx:config", (e) => {
+            const question = e.target.dataset?.confirm;
+            if (question) e.detail.cfg.confirm = () => confirm(question);
+        });
+        document.addEventListener("formSuccess", () => {
+            const count = document.getElementById("events-count");
+            count.textContent = Number(count.textContent) + 1;
+        });
+    </script>
+</body>
+</html>

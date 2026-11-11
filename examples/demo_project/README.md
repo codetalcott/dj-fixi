@@ -5,28 +5,49 @@ Example Django project demonstrating dj-fixi usage.
 ## Setup
 
 ```bash
-# From the demo_project directory
 cd examples/demo_project
-
-# Install dependencies (assuming dj-fixi is in development mode)
-pip install -e ../../
-
-# Run migrations
+pip install -e ../../        # dj-fixi itself, from this checkout
 python manage.py migrate
-
-# Create superuser (optional)
-python manage.py createsuperuser
-
-# Create sample data
-python manage.py shell
->>> from products.models import Product
->>> Product.objects.create(name="Widget", price=19.99, stock=100)
->>> Product.objects.create(name="Gadget", price=29.99, stock=50)
->>> exit()
-
-# Run server
+python manage.py seed        # 25 sample products; --reset starts over
 python manage.py runserver
 ```
+
+Then open <http://localhost:8000/> for the products app, and
+<http://localhost:8000/pitfalls/> for the pitfalls page.
+
+## The pitfalls page
+
+Seven mistakes that are easy to make with Fixi and Django, each shown live,
+twice: the naive version, which really is broken, next to what dj-fixi has you
+write instead.
+
+| # | Pitfall | What dj-fixi gives you |
+| --- | --- | --- |
+| 1 | A whole page lands inside a div | `render_fx` / `FxView`: fragment or page from one URL |
+| 2 | htmx attributes, written from habit | `{% fx_attrs %}`, and lint `L101` |
+| 3 | `fx-swap` in the wrong case | `{% fx_attrs %}` normalises it; lint `L103` |
+| 4 | A form that redirects on success | `FxResponseMixin` |
+| 5 | `FX-Trigger` with nobody listening | `{% fixi_events %}` |
+| 6 | Cancel that does not cancel | `cfg.confirm`; lint `L112` |
+| 7 | An unsafe request with no CSRF token | `{% fx_csrf_token %}` / `FxForm` |
+
+The pairs are data in [pitfalls/catalog.py](pitfalls/catalog.py), and every
+claim on the page is a test:
+
+```bash
+pip install pytest pytest-django
+pytest                       # what the lint and the test client say about each pair
+
+pip install playwright && playwright install chromium
+pytest -m browser            # each pair in a real browser: the naive one fails, the other works
+```
+
+`PLAYWRIGHT_CHANNEL=chrome pytest -m browser` uses an installed Chrome instead
+of downloading Chromium.
+
+Some dj-fixi protections cannot be shown live because they stop the server from
+starting: a wrong base-class order (`dj_fixi.E101`) and the other system checks.
+Those are covered by the package's own tests.
 
 ## Features Demonstrated
 

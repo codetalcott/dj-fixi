@@ -94,7 +94,7 @@ same change; the test will fail on the first of those if you forget.
 uv venv && uv pip install -e ".[dev]" && source .venv/bin/activate
 pytest
 ruff check . && ruff format --check .     # the formatter also covers code blocks in the .md files
-(cd examples/demo_project && python manage.py check --fail-level WARNING && python manage.py fixi_lint)
+(cd examples/demo_project && python manage.py check --fail-level WARNING && python manage.py fixi_lint && pytest)
 ```
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same, with
@@ -107,11 +107,24 @@ them). `tests/test_check_helper.py` covers dj-fixi's own, and
 `assert_no_fixi_check_issues()` is what downstream projects use; `manage.py check`
 in the demo exercises them for real.
 
-`tests/test_browser.py` drives the events shim in Chromium and is skipped unless
-Playwright is installed (`pip install playwright && playwright install chromium`).
+The browser tests are skipped unless Playwright is installed
+(`pip install playwright && playwright install chromium`, or set
+`PLAYWRIGHT_CHANNEL=chrome` to use an installed Chrome). `pytest -m browser` at
+the root drives the events shim; the same command in `examples/demo_project`
+drives the pitfalls page. CI runs both in its `browser` job.
 
-To run the demo: `python manage.py migrate && python manage.py runserver` in
-`examples/demo_project`.
+To run the demo: `python manage.py migrate && python manage.py seed && python
+manage.py runserver` in `examples/demo_project`.
+
+### The pitfalls page is the evidence
+
+`examples/demo_project/pitfalls/catalog.py` lists mistakes dj-fixi exists to
+prevent, each as a naive snippet and a fixed one, rendered live at `/pitfalls/`.
+The demo's tests hold every entry to its claims, in the lint and in a browser.
+When you fix or add a failure mode that can be shown in a running page, add a
+row. The naive halves are strings, not `.html` files, so `fixi_lint` over the
+demo stays clean; the root `pytest.ini` sets `testpaths = tests` so the demo's
+tests, which need the demo's settings, only run from the demo directory.
 
 ### Gotcha: stale bytecode when A/B testing a line
 

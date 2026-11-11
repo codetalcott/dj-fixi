@@ -1,0 +1,7 @@
+{% load fixi_tags %}
+{# No fx-target: the form replaces itself (fixi's default outerHTML swap). #}
+<form class="note-form" {% fx_attrs action=action method="POST" %}>
+    {% fx_csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Add note</button>
+</form>
