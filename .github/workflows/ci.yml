@@ -54,6 +54,29 @@ jobs:
           --with "django~=${{ matrix.django }}.0" --with pytest --with pytest-django
           --with-editable ../.. python -m pytest -q
 
+  # dj-fixi-tables builds on this package's public API. Run its suite against
+  # this checkout so a change that breaks it fails here, before the merge.
+  downstream:
+    runs-on: ubuntu-latest
+    env:
+      RUN: >-
+        uv run --no-project --python 3.13 --with django~=6.0.0 --with pytest
+        --with pytest-django --with-editable ${{ github.workspace }}
+        --with-editable ${{ github.workspace }}/dj-fixi-tables
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: codetalcott/dj-fixi-tables
+          path: dj-fixi-tables
+      - uses: astral-sh/setup-uv@v5
+      - name: dj-fixi-tables' suite
+        working-directory: dj-fixi-tables
+        run: $RUN python -m pytest -q
+      - name: dj-fixi-tables' demo
+        working-directory: dj-fixi-tables/examples/demo_project
+        run: $RUN python -m pytest -q
+
   browser:
     runs-on: ubuntu-latest
     env:

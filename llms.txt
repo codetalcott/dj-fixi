@@ -259,7 +259,7 @@ are never flagged. Silence any id with `SILENCED_SYSTEM_CHECKS` or
 `FxTestClient(lint_ignore=...)`. `FxMiddleware` logs the same findings under
 `DEBUG` (logger `dj_fixi.middleware`) and never raises.
 
-### dj_fixi.urlconf (public; used by dj-fixi-tables)
+### dj_fixi.urlconf (public)
 
     iter_routed_views(urlconf=None, *, max_depth=25) -> Iterator[RoutedView]
     routed_view_classes(base, urlconf=None) -> dict[type, RoutedView]
@@ -329,4 +329,5 @@ Silence with `SILENCED_SYSTEM_CHECKS = ["dj_fixi.W202"]`.
 ## Related
 
 - Fixi.js and the wider project: https://fixiproject.org
-- Tables (declarative, inline-editable): dj-fixi-tables
+- Tables (declarative, inline-editable): https://github.com/codetalcott/dj-fixi-tables
+  (its own llms.txt: https://github.com/codetalcott/dj-fixi-tables/blob/main/llms.txt)

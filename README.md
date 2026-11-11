@@ -250,8 +250,9 @@ class ProductListView(ListView, FxView):   # dj_fixi.E101
 
 `dj-fixi` deliberately stays small — it's the request/response/template adapter for
 Fixi. Declarative, inline-editable tables (server-rendered, with Fixi row swaps) live
-in a separate companion package, **dj-fixi-tables**, which builds on `dj-fixi`.
-That package is not published yet.
+in a separate companion package,
+**[dj-fixi-tables](https://github.com/codetalcott/dj-fixi-tables)**, which builds on
+`dj-fixi`.
 
 > Earlier releases shipped two half-finished table systems (a server-rendered
 > `ModelTable` and a JSON `FxCRUDView` for a client plugin). Both were removed in favor
