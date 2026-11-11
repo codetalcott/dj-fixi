@@ -10,7 +10,13 @@ from django.middleware.csrf import get_token
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
-from dj_fixi.attrs import normalize_swap, validate_action, validate_method, validate_trigger
+from dj_fixi.attrs import (
+    normalize_swap,
+    validate_action,
+    validate_confirm,
+    validate_method,
+    validate_trigger,
+)
 
 
 class FxForm:
@@ -38,8 +44,12 @@ class FxForm:
         css_class: str = "fx-form",
         cancel_action: str | None = None,
         request=None,
+        confirm: str | None = None,
     ):
         self.form = form
+        # A question to ask before submitting (``ext-fx-confirm``); needs
+        # ext-fixi.js, which {% fixi_scripts %} loads.
+        self.confirm = confirm
         self.action = action
         self.method = method
         self.target = target
@@ -89,6 +99,9 @@ class FxForm:
 
         if self.target:
             attrs["fx-target"] = self.target
+
+        if self.confirm is not None:
+            attrs["ext-fx-confirm"] = validate_confirm(self.confirm)
 
         return mark_safe(flatatt(attrs).lstrip())
 

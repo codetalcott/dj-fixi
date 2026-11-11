@@ -24,6 +24,7 @@ W202         Warning  A routed dj-fixi view declares no partial_template
 W203         Warning  A project template uses htmx attributes, which fixi ignores
 E301         Error    staticfiles installed but fixi.js is unfindable
 W302         Warning  django.contrib.staticfiles is not installed
+W303         Warning  Templates use ext-fx-* but nothing loads ext-fixi.js
 ===========  =======  ==================================================
 """
 

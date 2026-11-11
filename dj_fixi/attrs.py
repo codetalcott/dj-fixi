@@ -19,12 +19,16 @@ import re
 __all__ = [
     "FX_ATTRIBUTES",
     "FX_CONTROL_ATTRIBUTES",
+    "EXT_ATTRIBUTES",
+    "UNDEBOUNCEABLE_TRIGGERS",
     "SWAP_VALUES",
     "FORBIDDEN_METHODS",
     "normalize_swap",
     "validate_trigger",
     "validate_method",
     "validate_action",
+    "validate_confirm",
+    "validate_debounce",
 ]
 
 #: Every attribute fixi.js reads (fixi.js:7 ``fx-ignore``; :19-22 action, method,
@@ -36,6 +40,16 @@ FX_ATTRIBUTES = frozenset(
 #: The attributes that only mean something on an element fixi initialises,
 #: which is any element matching ``[fx-action]`` (fixi.js:81, :83).
 FX_CONTROL_ATTRIBUTES = frozenset({"fx-method", "fx-target", "fx-swap", "fx-trigger"})
+
+#: The extension attributes ``ext-fixi.js`` implements, in fixi's own ``ext-fx-``
+#: convention. Closed on purpose: see "Extension attributes" in CLAUDE.md for
+#: what may join this set. ``tests/test_ext_fixi_js.py`` pins it against the file.
+EXT_ATTRIBUTES = frozenset({"ext-fx-confirm", "ext-fx-debounce"})
+
+#: Debouncing delays the call into fixi, and fixi is what calls
+#: ``preventDefault()`` (fixi.js:34). By then a click has already followed its
+#: link and a submit has already navigated.
+UNDEBOUNCEABLE_TRIGGERS = frozenset({"click", "submit"})
 
 #: Fixi dispatches swaps case-sensitively (fixi.js:61-65): the adjacent positions
 #: go through a lowercase regex, and everything else is looked up as a property on
@@ -122,3 +136,42 @@ def validate_action(action) -> str:
             "check the name."
         )
     return value
+
+
+def validate_confirm(message) -> str:
+    """``message`` as given, or ``ValueError`` when there is nothing to ask."""
+    value = str(message)
+    if not value.strip():
+        raise ValueError(
+            "confirm is empty. ext-fixi.js only asks when ext-fx-confirm has a value, so an "
+            "empty one sends the request without asking. A misspelled template variable "
+            "renders as '' silently; check the name."
+        )
+    return value
+
+
+def validate_debounce(wait, trigger=None) -> str:
+    """
+    ``wait`` as whole milliseconds, or ``ValueError``.
+
+    One number and nothing else: no units, no modifiers. ``trigger`` is the
+    event the element listens for, when the caller knows it; a debounced click
+    or submit is refused because the browser's default action is not delayed.
+    """
+    try:
+        value = int(str(wait).strip())
+    except ValueError:
+        value = 0
+    if value <= 0 or str(wait).strip() != str(value):
+        raise ValueError(
+            f"debounce={wait!r} is not a whole number of milliseconds. ext-fixi.js reads it "
+            "with parseInt and ignores the attribute when that is not positive, so the "
+            "control fires on every event. Write a number such as 250, with no unit."
+        )
+    if trigger is not None and str(trigger).lower() in UNDEBOUNCEABLE_TRIGGERS:
+        raise ValueError(
+            f"debounce cannot be combined with trigger={trigger!r}: fixi cancels the browser's "
+            "default action only when it runs, and a debounced handler runs later, so the "
+            "link is followed or the form submitted first. Debounce an input event instead."
+        )
+    return str(value)

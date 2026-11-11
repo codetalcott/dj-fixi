@@ -19,16 +19,25 @@ register = template.Library()
 SWAP_VALUES = _attrs.SWAP_VALUES
 
 
-def _checked(validate, value):
+def _checked(validate, *values):
     """Run one of the ``dj_fixi.attrs`` validators, raising the template error."""
     try:
-        return validate(value)
+        return validate(*values)
     except ValueError as exc:
         raise template.TemplateSyntaxError(f"{{% fx_attrs %}} got {exc}") from None
 
 
 @register.simple_tag
-def fx_attrs(action=None, method="GET", target=None, swap="outerHTML", trigger="click", **kwargs):
+def fx_attrs(
+    action=None,
+    method="GET",
+    target=None,
+    swap="outerHTML",
+    trigger="click",
+    confirm=None,
+    debounce=None,
+    **kwargs,
+):
     """
     Generate Fixi.js attributes for an element.
 
@@ -42,7 +51,14 @@ def fx_attrs(action=None, method="GET", target=None, swap="outerHTML", trigger="
         target: CSS selector for swap target
         swap: Swap strategy (outerHTML, innerHTML, beforebegin, afterend, ...)
         trigger: Event that triggers the action (click, change, submit, etc.)
+        confirm: A question to ask first (``ext-fx-confirm``); Cancel sends nothing
+        debounce: Milliseconds of quiet to wait for before sending
+            (``ext-fx-debounce``), for search-as-you-type with ``trigger="input"``
         **kwargs: Additional attributes to add
+
+    ``confirm`` and ``debounce`` are implemented by ``ext-fixi.js``, which
+    ``{% fixi_scripts %}`` loads. Without it they do nothing; the lint and
+    check ``dj_fixi.W303`` say so.
 
     Returns:
         Safe string with Fixi attributes (values are HTML-escaped)
@@ -82,6 +98,15 @@ def fx_attrs(action=None, method="GET", target=None, swap="outerHTML", trigger="
         trigger = _checked(_attrs.validate_trigger, trigger)
         if trigger != "click":
             attrs["fx-trigger"] = trigger
+
+    if confirm is not None:
+        attrs["ext-fx-confirm"] = _checked(_attrs.validate_confirm, confirm)
+
+    if debounce is not None:
+        # trigger="click" is this tag's "not given"; the element's real default
+        # depends on its tag, which only the lint can see.
+        explicit = trigger if trigger and trigger != "click" else None
+        attrs["ext-fx-debounce"] = _checked(_attrs.validate_debounce, debounce, explicit)
 
     # Add any extra attributes
     for key, value in kwargs.items():
@@ -170,3 +195,62 @@ def fixi_events():
     spelling fixi cannot perform, and a request that failed.
     """
     return format_html('<script src="{}"></script>', static("dj_fixi/fixi-events.js"))
+
+
+def _csrf_token(context, tag: str) -> str | None:
+    """The CSRF token for a script tag, or None when the view opted out of CSRF."""
+    token = context.get("csrf_token")
+    if not token:
+        request = context.get("request")
+        if request is None:
+            raise ImproperlyConfigured(
+                f"{{% {tag} %}} found no CSRF token in the template context. Render this "
+                "template with a RequestContext (django.shortcuts.render, TemplateResponse, "
+                "or a generic view) so the token is available."
+            )
+        token = get_token(request)
+    return None if token == "NOTPROVIDED" else str(token)
+
+
+@register.simple_tag(takes_context=True)
+def fixi_ext(context):
+    """
+    Include dj-fixi's extension attributes: ``ext-fx-confirm``, ``ext-fx-debounce``,
+    and Django's CSRF token on every unsafe same-origin request.
+
+    Usage:
+        {% fixi_js %}
+        {% fixi_ext %}
+
+    Prefer ``{% fixi_scripts %}``, which emits all three scripts in order.
+
+    The token and the header name (``CSRF_HEADER_NAME``) are written onto the
+    script element, not read from the cookie, so this works with
+    ``CSRF_COOKIE_HTTPONLY`` and ``CSRF_USE_SESSIONS``. Putting the token in
+    the page makes Django add ``Vary: Cookie``, as ``{% csrf_token %}`` does.
+    """
+    from django.conf import settings
+
+    token = _csrf_token(context, "fixi_ext")
+    src = static("dj_fixi/ext-fixi.js")
+    if token is None:
+        return format_html('<script src="{}"></script>', src)
+    header = settings.CSRF_HEADER_NAME.removeprefix("HTTP_").replace("_", "-")
+    return format_html(
+        '<script src="{}" data-csrf-token="{}" data-csrf-header="{}"></script>', src, token, header
+    )
+
+
+@register.simple_tag(takes_context=True)
+def fixi_scripts(context):
+    """
+    Everything dj-fixi ships for the browser, in the order it must load:
+    fixi.js, the FX-Trigger event bridge, and the extension attributes.
+
+    Usage:
+        <head>{% fixi_scripts %}</head>
+
+    One tag instead of three, so there is no order to get wrong and no script
+    to forget. Requires ``django.contrib.staticfiles`` (or an equivalent).
+    """
+    return format_html("{}\n{}\n{}", fixi_js(), fixi_events(), fixi_ext(context))

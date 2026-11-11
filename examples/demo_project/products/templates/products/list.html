@@ -13,13 +13,13 @@
     <main>
         <div class="controls">
             <form {% fx_attrs action="." method="GET" target="#product-container" swap="innerHTML" %}>
-                {% comment %} Active search: the list updates as you type. fixi listens for one
-                   event name and has no "delay" modifier, so base.html debounces the
-                   keystrokes and dispatches "active-search" here. The form around it
-                   still handles Enter, and works without JavaScript. {% endcomment %}
+                {% comment %} Active search: debounce=250 renders ext-fx-debounce="250", which
+                   waits for a pause in typing and lets the newest request replace an
+                   unanswered one. The form around it still handles Enter, and works
+                   without JavaScript. {% endcomment %}
                 <input type="search" name="q" placeholder="Search products..." value="{{ request.GET.q }}"
-                       autocomplete="off" data-active-search
-                       {% fx_attrs action="." target="#product-container" swap="innerHTML" trigger="active-search" %}>
+                       autocomplete="off"
+                       {% fx_attrs action="." target="#product-container" swap="innerHTML" trigger="input" debounce=250 %}>
                 <button type="submit">Search</button>
             </form>
             <a href="{% url 'product_create' %}" class="button">Add Product</a>

@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.6.0 — extension attributes
+
+The demo's delete confirmation, active search and CSRF header each took a
+hand-written `fx:config` listener, and each was a place to get it wrong: an
+inline `confirm()` that fixi ignores, a debounce that dropped the last
+keystroke, a POST that came back 403. This release ships those three as
+declarative attributes, in fixi's own `ext-fx-` convention, and stops there.
+
+### Added
+
+- **`{% fixi_scripts %}`**: fixi.js, the events shim and the extensions, in
+  order, in one tag. Use it in place of `{% fixi_js %}`.
+- **`ext-fx-confirm="..."`** (`confirm=` on `{% fx_attrs %}` and `FxForm`):
+  ask first; Cancel sends nothing.
+- **`ext-fx-debounce="250"`** (`debounce=` on `{% fx_attrs %}`): wait for a
+  pause in the triggering event. Unlike the sketch in fixi's README, the newest
+  request also aborts an unanswered older one. Without that, fixi drops a
+  request made while another is in flight, and a search box shows results for
+  what was typed a moment ago with no error anywhere.
+- **Automatic CSRF.** With `{% fixi_scripts %}` (or `{% fixi_ext %}`) on the
+  page, every unsafe, same-origin Fixi request carries Django's token in the
+  `CSRF_HEADER_NAME` header. The token is written onto the script element, so
+  `CSRF_COOKIE_HTTPONLY` and `CSRF_USE_SESSIONS` work. It is never sent to
+  another origin.
+- **Lint `L113`–`L115`**: a typo of one of the two names; a value the script
+  cannot use (no message, not whole milliseconds, or a debounced click or
+  submit); and a page that uses an attribute without loading the script, which
+  for a confirmation means the request goes out unasked.
+- **Check `dj_fixi.W303`**: templates use an extension attribute and no
+  template loads `ext-fixi.js`.
+- `L112`, `L105` and the `hx-confirm` / `hx-trigger` translations now name the
+  attribute to write.
+
+### Fixed
+
+- `manage.py fixi_lint` reported an id written once in each branch of an
+  `{% if %}` as a duplicate (`L109`). Template source cannot know which branch
+  renders; the rule stays on for rendered pages.
+
+### Not added, on purpose
+
+Disable-during-request, indicators, polling, history, boosting, out-of-band
+swaps and inheritance. dj-fixi is not becoming htmx: the admission rule is in
+CLAUDE.md, and `tests/test_ext_fixi_js.py` caps the vocabulary at two names and
+the script at 40 lines of code.
+
+### Demo
+
+- The product list's delete, active search and CSRF use the new attributes and
+  tag; about thirty lines of script are gone from `base.html`.
+- The pitfalls page has an eighth row, "Trigger modifiers, written from habit",
+  and the two rows that one script tag fixes (FX-Trigger, CSRF) show it as a
+  pair of frames that differ only in that tag.
+
 ## 0.5.3 — 2026-11-11
 
 ### Fixed

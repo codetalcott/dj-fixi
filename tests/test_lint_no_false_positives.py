@@ -140,3 +140,21 @@ def test_inline_handlers_that_do_not_guard_the_fixi_event():
         "<a href='/d/' onclick=\"return confirm('?')\">d</a>"
     )
     assert lint_html(page(body)) == []
+
+
+def test_template_source_with_one_id_in_each_branch_is_not_a_duplicate():
+    """Source cannot know which branch renders; the rendered page is where L109 belongs."""
+    from dj_fixi.lint import lint_template_source
+
+    source = (
+        "{% if editing %}"
+        '<button fx-action="/save/" fx-target="#out">Save</button><div id="out">a</div>'
+        "{% else %}"
+        '<button fx-action="/load/" fx-target="#out">Load</button><div id="out">b</div>'
+        "{% endif %}"
+    )
+    assert lint_template_source(source) == []
+    rendered_twice = (
+        '<a fx-action="/x/" fx-target="#out">x</a><div id="out"></div><div id="out"></div>'
+    )
+    assert [f.id for f in lint_html(rendered_twice)] == ["dj_fixi.L109"]  # still caught when real

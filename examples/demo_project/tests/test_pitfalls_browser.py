@@ -83,13 +83,13 @@ def test_form_that_redirects(page):
     assert page.locator("#redirect-fixed .live .note-form").count() == 1
     assert page.input_value("#redirect-fixed input[name=text]") == ""  # blank, ready for the next
 
-    assert page.locator("section.pitfall").count() == 7
+    assert page.locator("section.pitfall").count() == 8
     page.fill("#redirect-naive input[name=text]", "from the naive form")
     page.click("#redirect-naive button[type=submit]")
     # the redirect's target, the whole pitfalls page, replaced the form
     page.wait_for_selector("#redirect-naive .live h1 >> text=Pitfalls")
-    assert page.locator("#redirect-naive .live section.pitfall").count() == 7
-    assert page.locator("section.pitfall").count() == 14
+    assert page.locator("#redirect-naive .live section.pitfall").count() == 8
+    assert page.locator("section.pitfall").count() == 16
 
 
 def test_fx_trigger_needs_the_shim(page):
@@ -121,12 +121,25 @@ def test_confirm_accepted_still_sends(page):
 
 
 def test_unsafe_request_without_a_token(page):
+    """The two frames hold the same button; only the script tag differs."""
+    bare = page.frame_locator("#csrf-naive iframe")
     with page.expect_response("**/pitfalls/save/") as naive:
-        page.click("#csrf-naive button")
+        bare.locator("button").click()
     assert naive.value.status == 403
-    page.wait_for_selector("#csrf-naive-out >> text=CSRF")
+    bare.locator("#out >> text=CSRF").wait_for()
 
+    full = page.frame_locator("#csrf-fixed iframe")
     with page.expect_response("**/pitfalls/save/") as fixed:
-        page.click("#csrf-fixed button")
+        full.locator("button").click()
     assert fixed.value.status == 200
-    page.wait_for_selector("#csrf-fixed-out >> text=Saved.")
+    full.locator("#out >> text=Saved.").wait_for()
+
+
+def test_trigger_modifiers(page):
+    page.locator("#trigger-naive input").press_sequentially("anvil", delay=20)
+    page.locator("#trigger-fixed input").press_sequentially("anvil", delay=20)
+    page.wait_for_selector("#trigger-fixed-out >> text=You searched for: anvil")
+
+    # the fixed box went second and has answered, so the naive one had its chance
+    assert page.inner_text("#trigger-naive-out") == ""
+    assert [r[1].split("?")[1] for r in fetches(page, "/pitfalls/echo/")] == ["q=anvil"]

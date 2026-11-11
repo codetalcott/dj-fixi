@@ -88,6 +88,29 @@ PITFALLS = [
         lint=("dj_fixi.L103",),
     ),
     Pitfall(
+        slug="trigger",
+        title="Trigger modifiers, written from habit",
+        problem=(
+            "fixi hands fx-trigger to addEventListener as it is. With a delay modifier it "
+            'waits for an event named "input delay:250ms", which never fires. Type in the box.'
+        ),
+        naive="""\
+<input type="search" name="q" placeholder="Type here"
+       fx-action="{% url 'pitfalls:echo' %}" fx-trigger="input delay:250ms"
+       fx-target="#trigger-naive-out" fx-swap="innerHTML">
+<div id="trigger-naive-out" class="out"></div>""",
+        fixed="""\
+<input type="search" name="q" placeholder="Type here"
+       {% fx_attrs action=echo_url target="#trigger-fixed-out" swap="innerHTML" trigger="input" debounce=250 %}>
+<div id="trigger-fixed-out" class="out"></div>""",
+        fix=(
+            'One event name in fx-trigger, and debounce=250 (ext-fx-debounce="250") for the '
+            "pause. A newer request also replaces an unanswered older one. Needs {% fixi_scripts %}."
+        ),
+        caught_by="The lint; {% fx_attrs %} refuses the modifier at render.",
+        lint=("dj_fixi.L105",),
+    ),
+    Pitfall(
         slug="redirect",
         title="A form that redirects on success",
         problem=(
@@ -112,11 +135,14 @@ PITFALLS = [
             "hears about it."
         ),
         naive="""\
-<iframe title="Without the shim" src="{% url 'pitfalls:events_frame' %}?shim=0"></iframe>""",
+<iframe title="fixi.js alone" src="{% url 'pitfalls:frame' 'events' %}?scripts=bare"></iframe>""",
         fixed="""\
-<iframe title="With the shim" src="{% url 'pitfalls:events_frame' %}?shim=1"></iframe>""",
-        fix="{% fixi_events %} after {% fixi_js %} turns the header into a DOM event, after the swap.",
-        caught_by="Nothing can see this from the server; the shim is the fix.",
+<iframe title="With fixi_scripts" src="{% url 'pitfalls:frame' 'events' %}?scripts=full"></iframe>""",
+        fix=(
+            "{% fixi_scripts %} in place of {% fixi_js %}. It loads the shim that turns the "
+            "header into a DOM event, after the swap. The two frames differ in that one tag."
+        ),
+        caught_by="Nothing can see this from the server; the tag is the fix.",
     ),
     Pitfall(
         slug="confirm",
@@ -133,11 +159,11 @@ PITFALLS = [
         fixed="""\
 <button fx-action="{% url 'pitfalls:hit' token 'confirm-fixed' %}"
         fx-target="#confirm-fixed-out" fx-swap="innerHTML"
-        data-confirm="Delete the record?">Delete</button>
+        ext-fx-confirm="Delete the record?">Delete</button>
 <span id="confirm-fixed-out" class="out">The server has received 0 requests.</span>""",
         fix=(
-            "Set cfg.confirm in an fx:config listener (this page reads it from data-confirm). "
-            "fixi awaits it and sends nothing when it resolves false."
+            'ext-fx-confirm="...", or confirm= on {% fx_attrs %}. It sets cfg.confirm, which '
+            "fixi awaits, and sends nothing when the answer is Cancel. Needs {% fixi_scripts %}."
         ),
         caught_by="The lint.",
         lint=("dj_fixi.L112",),
@@ -147,24 +173,17 @@ PITFALLS = [
         title="An unsafe request with no CSRF token",
         problem=(
             "A button that POSTs carries no token. Django answers 403, and fixi swaps the "
-            "error page into the target, stylesheet included, so it restyles this page too."
+            "error page into the target, stylesheet included."
         ),
         naive="""\
-<button fx-action="{% url 'pitfalls:save' %}" fx-method="POST"
-        fx-target="#csrf-naive-out" fx-swap="innerHTML">Save</button>
-<div id="csrf-naive-out" class="out"></div>""",
+<iframe title="fixi.js alone" src="{% url 'pitfalls:frame' 'csrf' %}?scripts=bare"></iframe>""",
         fixed="""\
-<form fx-action="{% url 'pitfalls:save' %}" fx-method="POST"
-      fx-target="#csrf-fixed-out" fx-swap="innerHTML">
-  {% fx_csrf_token %}
-  <button type="submit">Save</button>
-</form>
-<div id="csrf-fixed-out" class="out"></div>""",
+<iframe title="With fixi_scripts" src="{% url 'pitfalls:frame' 'csrf' %}?scripts=full"></iframe>""",
         fix=(
-            "Put the control in a form with {% fx_csrf_token %}; FxForm does this for you. For "
-            "controls outside a form, set the X-CSRFToken header in an fx:config listener."
+            "{% fixi_scripts %} in place of {% fixi_js %}. Every unsafe same-origin request "
+            "then carries Django's token in a header. The button in the two frames is identical."
         ),
-        caught_by="Nothing static can know which requests are unsafe; the token tag is the fix.",
+        caught_by="Nothing static can know which requests are unsafe; the tag is the fix.",
     ),
 ]
 

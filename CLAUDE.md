@@ -22,7 +22,7 @@ headers. Everything else follows from that:
 
 - There is no target, swap or trigger on the wire. Nothing like `request.htmx.target`
   exists or can exist.
-- `FX-Trigger` on a response is inert unless the page loads `{% fixi_events %}`
+- `FX-Trigger` on a response is inert unless the page loads `{% fixi_scripts %}`
   (or an equivalent moxi.js handler).
 - The default swap is `outerHTML`, not `innerHTML`.
 - `fetch()` follows redirects before fixi sees them, so a redirect answered to a
@@ -41,13 +41,13 @@ claim about Fixi matters, read it there (it is 90 lines).
 | [dj_fixi/mixins.py](dj_fixi/mixins.py) | `FxResponseMixin` for Django's form and delete views |
 | [dj_fixi/shortcuts.py](dj_fixi/shortcuts.py) | `render_fx()` for function-based views |
 | [dj_fixi/forms.py](dj_fixi/forms.py) | `FxForm`, `InlineEditForm`, `FxModelForm` |
-| [dj_fixi/templatetags/fixi_tags.py](dj_fixi/templatetags/fixi_tags.py) | `fx_attrs`, `fx_csrf_token`, `fixi_js`, `fixi_events` |
+| [dj_fixi/templatetags/fixi_tags.py](dj_fixi/templatetags/fixi_tags.py) | `fixi_scripts` (use this), `fx_attrs`, `fx_csrf_token`, and the parts: `fixi_js`, `fixi_events`, `fixi_ext` |
 | [dj_fixi/attrs.py](dj_fixi/attrs.py) | The one source of truth for what fixi.js accepts. The tag, `FxForm` and the lint all import it; `tests/test_lint_vocabulary.py` pins it against the vendored `fixi.js` |
 | [dj_fixi/lint.py](dj_fixi/lint.py) | HTML lint. Runs in `FxTestClient` (raises), in `FxMiddleware` under `DEBUG` (logs), and over template source via `manage.py fixi_lint` |
 | [dj_fixi/checks/](dj_fixi/checks/) | System checks `dj_fixi.E101`…`W302`, registered by [dj_fixi/apps.py](dj_fixi/apps.py) |
 | [dj_fixi/urlconf.py](dj_fixi/urlconf.py) | Defensive URLconf walk the checks are built on. Public API; never raises |
 | [dj_fixi/testing.py](dj_fixi/testing.py) | `FxTestClient`, `assert_no_fixi_check_issues()`, `fixi_check_messages()` |
-| [dj_fixi/static/dj_fixi/](dj_fixi/static/dj_fixi/) | Vendored `fixi.js` and the `fixi-events.js` shim |
+| [dj_fixi/static/dj_fixi/](dj_fixi/static/dj_fixi/) | Vendored `fixi.js`, the `fixi-events.js` shim, and `ext-fixi.js` (confirm, debounce, CSRF header) |
 | [examples/demo_project/](examples/demo_project/) | A working app that exercises all of it |
 
 ## Design principle
@@ -65,6 +65,33 @@ A check is only correct when the defect lives in the *project's* settings,
 URLconf, or filesystem. A check that says "dj-fixi ignores this attribute" ships
 a bug plus a note about the bug — fix the attribute instead.
 
+## Extension attributes: not an htmx
+
+`ext-fixi.js` implements two attributes, `ext-fx-confirm` and `ext-fx-debounce`,
+plus an automatic CSRF header. That list is closed on purpose. Fixi is minimal
+by design, htmx already exists, and the README sends people who want htmx's
+features to htmx. An attribute may be added only if **all** of these hold:
+
+1. It closes a silent failure or data loss, or a demo this repo ships needs it.
+   "htmx has it" is not a reason.
+2. Fixi's own README already sketches it under that `ext-fx-` name, so this
+   adopts a convention and does not invent one.
+3. Its value is one scalar: a message or a number. No modifiers, no
+   mini-language. htmx's trigger modifiers are where that slope starts.
+4. It adds nothing to the wire: no request header but the CSRF token, and no
+   response header. `FX-Trigger` stays the only one dj-fixi has.
+
+Out of scope for good: history and push-URL, boosting, attribute inheritance,
+out-of-band swaps, relative selectors, polling, indicators, request-sync
+options, and response headers that retarget, reswap or redirect.
+
+`tests/test_ext_fixi_js.py` enforces this: the vocabulary is an exact set, the
+script may implement nothing outside it, and the file has a code-line budget.
+Changing any of those means editing that test and saying why in the changelog.
+Every attribute also needs the usual treatment: a validator in `attrs.py`, lint
+rules written against a no-false-positive case first, a browser test, and a row
+on the pitfalls page.
+
 ## Rules
 
 - Read detection with `dj_fixi.is_fx(request)`, never `getattr(request, "is_fx", False)`.
@@ -78,7 +105,8 @@ a bug plus a note about the bug — fix the attribute instead.
 - A new check needs a case in `tests/test_checks_no_false_positives.py` first; a new
   lint rule needs one in `tests/test_lint_no_false_positives.py` first. An Error
   stops `runserver`, so a false positive blocks someone rather than annoying them.
-- Custom `fx-*` attribute names are never flagged by the lint.
+- Custom `fx-*` and `ext-fx-*` attribute names are never flagged by the lint, unless they are
+  one edit away from a real one on a fixi control.
 - Type hints and docstrings on public APIs.
 
 ## Keeping the docs honest

@@ -29,7 +29,8 @@ def test_htmx_translations_say_what_to_write_or_that_there_is_nothing():
     assert "fx-target" in translate_htmx("hx-target") and "closest" in translate_htmx("hx-target")
     assert "no fixi equivalent" in translate_htmx("hx-boost")
     assert "no fixi equivalent" in translate_htmx("hx-push-url")
-    assert "fx:config" in translate_htmx("hx-confirm")
+    assert "ext-fx-confirm" in translate_htmx("hx-confirm")
+    assert "ext-fx-debounce" in translate_htmx("hx-trigger")
     assert "addEventListener" in translate_htmx("hx-on:click")
     assert translate_htmx("data-hx-get").startswith("hx-get ->")
 

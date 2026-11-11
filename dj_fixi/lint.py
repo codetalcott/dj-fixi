@@ -29,9 +29,12 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 
 from .attrs import (
+    EXT_ATTRIBUTES,
     FX_ATTRIBUTES,
     FX_CONTROL_ATTRIBUTES,
     SWAP_VALUES,
+    validate_confirm,
+    validate_debounce,
     validate_method,
     validate_trigger,
 )
@@ -80,9 +83,12 @@ FINDING_IDS = {
     "dj_fixi.L107": 'fx-action=""; fixi fetches ./undefined',
     "dj_fixi.L108": "fx-target matches nothing on this page; fixi swaps into the element itself",
     "dj_fixi.L109": "an id that fx-target points at appears more than once; fixi takes the first",
-    "dj_fixi.L110": "fx-method/target/swap/trigger on an element with no fx-action; fixi never initialises it",
+    "dj_fixi.L110": "fx-method/target/swap/trigger or ext-fx-* on an element with no fx-action; fixi never initialises it",
     "dj_fixi.L111": "a full HTML document answering a Fixi request",
     "dj_fixi.L112": "inline confirm() on the event fixi listens for; Cancel does not stop the request",
+    "dj_fixi.L113": "ext-fx-* attribute that looks like a typo of a real one",
+    "dj_fixi.L114": "ext-fx-confirm or ext-fx-debounce with a value ext-fixi.js cannot use",
+    "dj_fixi.L115": "ext-fx-* attribute on a page that does not load ext-fixi.js; it does nothing",
 }
 
 _HTMX_TRANSLATIONS = {
@@ -93,8 +99,8 @@ _HTMX_TRANSLATIONS = {
     "hx-delete": 'fx-action="..." fx-method="DELETE"',
     "hx-target": 'fx-target="<css selector>" (no "this", no closest/next/previous/find: those match nothing and fixi swaps into the element itself)',
     "hx-swap": "fx-swap with one keyword and no modifiers; note fixi's default is outerHTML where htmx's is innerHTML",
-    "hx-trigger": "fx-trigger with one event name and no modifiers",
-    "hx-confirm": "no attribute; set cfg.confirm in an fx:config listener",
+    "hx-trigger": "fx-trigger with one event name and no modifiers (for delay:, ext-fx-debounce in milliseconds)",
+    "hx-confirm": 'ext-fx-confirm="...", which needs {% fixi_scripts %}',
 }
 _NO_EQUIVALENT = (
     "hx-boost",
@@ -292,6 +298,8 @@ class _Linter:
                 self.ids.setdefault(node.attrs["id"], []).append(node)
         scripts = " ".join(tree.scripts)
         self.loads_fixi = "fixi" in scripts
+        self.loads_ext = "ext-fixi" in scripts
+        self.ext_reported = False
         self.loads_htmx = "htmx" in scripts
 
     def add(
@@ -314,6 +322,8 @@ class _Linter:
                     self.htmx_attribute(node, name)
                 elif name.startswith("fx-"):
                     self.fx_attribute(node, name, value, has_action)
+                elif name.startswith("ext-fx-"):
+                    self.ext_attribute(node, name, value, has_action)
             target = node.attrs.get("fx-target")
             if target and _TEMPLATE_VAR not in target:
                 m = _ID_TARGET.match(target.strip())
@@ -322,7 +332,9 @@ class _Linter:
             if has_action:
                 self.inline_confirm(node)
             if not has_action:
-                present = sorted(n for n in node.attrs if n in FX_CONTROL_ATTRIBUTES)
+                present = sorted(
+                    n for n in node.attrs if n in FX_CONTROL_ATTRIBUTES or n in EXT_ATTRIBUTES
+                )
                 if present:
                     self.add(
                         "dj_fixi.L110",
@@ -365,16 +377,7 @@ class _Linter:
         ``defaultPrevented``, so it runs anyway: the user clicks Cancel and the
         request is sent. Only the handler for the event fixi listens for matters.
         """
-        trigger = node.attrs.get("fx-trigger")
-        if trigger is None:
-            if node.tag == "form":
-                trigger = "submit"
-            elif node.tag in _CHANGE_TAGS or (
-                node.tag == "input" and node.attrs.get("type") != "button"
-            ):
-                trigger = "change"
-            else:
-                trigger = "click"
+        trigger = self.effective_trigger(node)
         if _TEMPLATE_VAR in trigger:
             return
         handler = node.attrs.get(f"on{trigger.strip().lower()}")
@@ -385,10 +388,69 @@ class _Linter:
                 node,
                 f'on{trigger}="...confirm(...)" does not guard this control: fixi never checks '
                 "defaultPrevented, so choosing Cancel still sends the request. Remove the inline "
-                "handler and set cfg.confirm in an fx:config listener, e.g. "
-                "evt.detail.cfg.confirm = () => confirm(message).",
+                'handler and write ext-fx-confirm="..." instead (load {% fixi_scripts %}), or set '
+                "cfg.confirm yourself in an fx:config listener.",
                 "fixi.js:42-45",
             )
+
+    @staticmethod
+    def effective_trigger(node: Node) -> str:
+        """The event fixi listens for on ``node`` (fixi.js:74)."""
+        trigger = node.attrs.get("fx-trigger")
+        if trigger is not None:
+            return trigger
+        if node.tag == "form":
+            return "submit"
+        if node.tag in _CHANGE_TAGS or (node.tag == "input" and node.attrs.get("type") != "button"):
+            return "change"
+        return "click"
+
+    def ext_attribute(self, node: Node, name: str, value: str | None, has_action: bool) -> None:
+        """
+        ``ext-fx-*``: dj-fixi's two, and whatever the project defines itself.
+
+        A name that is not ours is the project's own extension and is left
+        alone, unless it is one edit away from ours on a fixi control.
+        """
+        if name not in EXT_ATTRIBUTES:
+            close = difflib.get_close_matches(name, sorted(EXT_ATTRIBUTES), n=1, cutoff=0.85)
+            if has_action and close:
+                self.add(
+                    "dj_fixi.L113",
+                    "warning",
+                    node,
+                    f"{name} is not one of dj-fixi's extension attributes (did you mean {close[0]}?); "
+                    "ext-fixi.js ignores it.",
+                )
+            return
+        if self.full_document and self.loads_fixi and not self.loads_ext and not self.ext_reported:
+            self.ext_reported = True
+            consequence = (
+                "the request is sent without asking"
+                if name == "ext-fx-confirm"
+                else "the control fires on every event"
+            )
+            self.add(
+                "dj_fixi.L115",
+                "error",
+                node,
+                f"{name} is implemented by ext-fixi.js, which this page does not load, so {consequence}. "
+                "Use {% fixi_scripts %} in place of {% fixi_js %}.",
+            )
+        if value is None or _TEMPLATE_VAR in value:
+            if value is None:
+                self.add(
+                    "dj_fixi.L114", "error", node, f"{name} has no value; ext-fixi.js ignores it."
+                )
+            return
+        try:
+            if name == "ext-fx-confirm":
+                validate_confirm(value)
+            else:
+                trigger = self.effective_trigger(node)
+                validate_debounce(value, None if _TEMPLATE_VAR in trigger else trigger)
+        except ValueError as exc:
+            self.add("dj_fixi.L114", "error", node, f'{name}="{value}": {exc}')
 
     def htmx_attribute(self, node: Node, name: str) -> None:
         level = (
@@ -460,7 +522,8 @@ class _Linter:
                     "error",
                     node,
                     f'fx-trigger="{value}" is handed to addEventListener verbatim, so it waits for an event '
-                    "named exactly that. One event name, no modifiers.",
+                    "named exactly that. One event name, no modifiers. For a delay, add "
+                    'ext-fx-debounce="250" (milliseconds; load {% fixi_scripts %}).',
                     "fixi.js:74-75",
                 )
         elif name == "fx-method":
@@ -686,9 +749,15 @@ def lint_template_source(
     Findings for one template's source, without rendering it.
 
     Static, so page-level rules stay off: a template that extends a layout
-    cannot know which ids the page will have. The test client lints rendered
-    responses; this is for a person at the command line (``manage.py fixi_lint``).
+    cannot know which ids the page will have. Nor can it know which branch of
+    an ``{% if %}`` renders, so an id written once in each branch is not a
+    duplicate (L109) here. The test client lints rendered responses; this is
+    for a person at the command line (``manage.py fixi_lint``).
     """
     return lint_html(
-        strip_template_syntax(source), full_document=False, is_fx=None, ignore=ignore, file=file
+        strip_template_syntax(source),
+        full_document=False,
+        is_fx=None,
+        ignore=(*ignore, "dj_fixi.L109"),
+        file=file,
     )

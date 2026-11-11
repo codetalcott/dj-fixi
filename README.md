@@ -6,7 +6,8 @@ Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi), a ligh
 
 - **Fragment or page from one view.** `FxView` and `render_fx` serve a fragment to Fixi requests and the full page to everything else.
 - **Form and delete views that answer Fixi.** `FxResponseMixin` makes Django's generic create, update and delete views respond with fragments.
-- **Template tags.** `{% fx_attrs %}` writes Fixi attributes, `{% fx_csrf_token %}` the token, and `{% fixi_js %}` loads the vendored `fixi.js`.
+- **Template tags.** `{% fixi_scripts %}` loads the vendored `fixi.js` and dj-fixi's two small companions, and `{% fx_attrs %}` writes validated Fixi attributes.
+- **Two extension attributes, and CSRF for free.** `ext-fx-confirm` asks before sending, `ext-fx-debounce` gives search-as-you-type, and every unsafe request carries Django's CSRF token (see [Extension attributes](#extension-attributes)).
 - **Form helpers.** `FxForm` and `FxModelForm` render Django forms with Fixi attributes.
 - **A test client that lints.** `FxTestClient` checks every response for what fixi.js would silently ignore, and refuses to guess about redirects.
 - **Lint.** `dj_fixi.lint` knows the six attributes fixi reads and the htmx ones it does not (see [Lint](#lint)).
@@ -75,8 +76,7 @@ with neither answers `405` forever.
 <!DOCTYPE html>
 <html>
 <head>
-    {% fixi_js %}      {# serves the fixi.js vendored with dj-fixi (needs staticfiles) #}
-    {% fixi_events %}  {# optional: enables FX-Trigger events (see below) #}
+    {% fixi_scripts %}  {# fixi.js, the FX-Trigger shim and the extensions (needs staticfiles) #}
 </head>
 <body>
     <div id="product-list">
@@ -117,7 +117,8 @@ rather than expecting Fixi to behave the same way.
 `{"formSuccess": {"object_id": "7"}}`). **Fixi core does not read response headers**, so
 this header does nothing on its own. Enable it one of two ways:
 
-- **Shipped shim (zero-config):** add `{% fixi_events %}` after `{% fixi_js %}`. It turns
+- **Shipped shim (zero-config):** `{% fixi_scripts %}` loads it (on its own it is
+  `{% fixi_events %}` after `{% fixi_js %}`). It turns
   the header into a bubbling `CustomEvent` **after the swap**, dispatched on the element
   that made the request if it is still in the document and on `<body>` otherwise (a
   delete's `outerHTML` swap removes the element that asked). A string `target` key in
@@ -128,8 +129,41 @@ this header does nothing on its own. Enable it one of two ways:
 - **moxi.js:** if you already use [moxi](https://fixiproject.org), write the equivalent
   `on-fx:swapped` handler that reads `evt.detail.cfg.response.headers.get('FX-Trigger')`.
 
-Unsafe Fixi requests (POST/DELETE/…) still need a CSRF token; attach it per request via an
-`fx:config` listener setting the `X-CSRFToken` header (see the demo's `base.html`).
+## Extension attributes
+
+Fixi is deliberately minimal and expects you to add behaviour through its events.
+dj-fixi ships the few that nearly every Django project needs, in a 60-line file
+loaded by `{% fixi_scripts %}`, using fixi's own `ext-fx-` naming convention:
+
+```django
+{# Ask first. Cancel sends nothing. #}
+<button {% fx_attrs action=item.delete_url method="DELETE" confirm="Delete this item?" %}>Delete</button>
+
+{# Search as you type: wait for a 250 ms pause; the newest request wins. #}
+<input type="search" name="q"
+       {% fx_attrs action="/items/" target="#results" swap="innerHTML" trigger="input" debounce=250 %}>
+```
+
+which render `ext-fx-confirm="Delete this item?"` and `ext-fx-debounce="250"`.
+
+**CSRF needs nothing.** With `{% fixi_scripts %}` on the page, every non-GET,
+same-origin Fixi request carries Django's token in the `X-CSRFToken` header. The
+token is written onto the script element, so this works with
+`CSRF_COOKIE_HTTPONLY` and `CSRF_USE_SESSIONS`. `{% fx_csrf_token %}` in a form is
+only needed when the form must also work without JavaScript.
+
+**Loading on arrival** is fixi's own: `fx-trigger="fx:inited"`.
+
+An attribute that silently does nothing is the failure dj-fixi exists to prevent,
+so these are checked like everything else: the lint flags a typo'd name, a bad
+value, a debounced click or submit, and a page that uses one without loading the
+script; `dj_fixi.W303` does the last at startup.
+
+**This list is closed by design.** dj-fixi is not growing into htmx. An attribute
+is added only if it closes a silent failure or data loss, fixi's own README
+already sketches it, and its value is a single message or number. History,
+boosting, out-of-band swaps, inheritance, polling and response headers that
+retarget are out of scope; if you need them, use htmx with django-htmx.
 
 ## Lint
 
@@ -172,6 +206,7 @@ library cannot fix it — so `manage.py check` reports it at startup instead.
 | `dj_fixi.W203` | Warning | A project template uses htmx attributes, which fixi ignores |
 | `dj_fixi.E301` | Error | `staticfiles` is installed but `fixi.js` is unfindable |
 | `dj_fixi.W302` | Warning | `django.contrib.staticfiles` is not installed |
+| `dj_fixi.W303` | Warning | Templates use `ext-fx-*` but nothing loads `ext-fixi.js` |
 
 Checks only inspect views reachable from your URLconf, and stay silent on a
 project that is not using the feature in question — a `render_fx`-only project

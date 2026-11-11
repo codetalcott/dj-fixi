@@ -7,6 +7,8 @@ FxView hands an ordered *list* of candidates to TemplateResponse, and
 which fixi then swaps into a div.
 """
 
+import re
+
 import django
 from django.core.checks import Tags, Warning, register
 from django.views.generic.edit import DeletionMixin
@@ -142,6 +144,52 @@ def check_no_htmx_attributes(app_configs=None, **kwargs):
             )
         )
     return messages
+
+
+_EXT_USE = re.compile(r"\bext-fx-(?:confirm|debounce)\b|\b(?:confirm|debounce)\s*=")
+_EXT_LOAD = re.compile(r"\{%\s*fixi_(?:scripts|ext)\b|ext-fixi\.js")
+_FX_ATTRS_TAG = re.compile(r"\{%\s*fx_attrs\b[^%]*%\}")
+
+
+@register("dj_fixi", Tags.templates)
+def check_ext_script_is_loaded(app_configs=None, **kwargs):
+    """
+    ``ext-fx-confirm`` / ``ext-fx-debounce`` in a project that never loads ext-fixi.js.
+
+    The attributes are inert without the script, and inert is the dangerous
+    direction for a confirmation: the delete goes through without asking.
+    Whether a given page loads the script depends on template inheritance, so
+    this only reports the case it can be sure of, a project whose templates
+    use an attribute and load the script nowhere.
+    """
+    if not should_run(app_configs):
+        return []
+
+    from dj_fixi.lint import iter_template_files, template_directories
+
+    users, loaded = [], False
+    for path in iter_template_files(template_directories()):
+        try:
+            source = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        loaded = loaded or bool(_EXT_LOAD.search(source))
+        uses = "ext-fx-confirm" in source or "ext-fx-debounce" in source
+        uses = uses or any(_EXT_USE.search(tag) for tag in _FX_ATTRS_TAG.findall(source))
+        if uses:
+            users.append(str(path))
+    if loaded or not users:
+        return []
+    shown = ", ".join(users[:3]) + (f" (+{len(users) - 3} more)" if len(users) > 3 else "")
+    return [
+        Warning(
+            f"Templates use ext-fx-confirm or ext-fx-debounce ({shown}) but no project "
+            "template loads ext-fixi.js, so they do nothing: confirmations are skipped and "
+            "debounced controls fire on every event.",
+            hint="Put {% fixi_scripts %} in the base template, in place of {% fixi_js %}.",
+            id="dj_fixi.W303",
+        )
+    ]
 
 
 @register("dj_fixi", Tags.templates)

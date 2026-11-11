@@ -17,7 +17,7 @@ Then open <http://localhost:8000/> for the products app, and
 
 ## The pitfalls page
 
-Seven mistakes that are easy to make with Fixi and Django, each shown live,
+Eight mistakes that are easy to make with Fixi and Django, each shown live,
 twice: the naive version, which really is broken, next to what dj-fixi has you
 write instead.
 
@@ -26,10 +26,14 @@ write instead.
 | 1 | A whole page lands inside a div | `render_fx` / `FxView`: fragment or page from one URL |
 | 2 | htmx attributes, written from habit | `{% fx_attrs %}`, and lint `L101` |
 | 3 | `fx-swap` in the wrong case | `{% fx_attrs %}` normalises it; lint `L103` |
-| 4 | A form that redirects on success | `FxResponseMixin` |
-| 5 | `FX-Trigger` with nobody listening | `{% fixi_events %}` |
-| 6 | Cancel that does not cancel | `cfg.confirm`; lint `L112` |
-| 7 | An unsafe request with no CSRF token | `{% fx_csrf_token %}` / `FxForm` |
+| 4 | Trigger modifiers, written from habit | `debounce=` / `ext-fx-debounce`; lint `L105` |
+| 5 | A form that redirects on success | `FxResponseMixin` |
+| 6 | `FX-Trigger` with nobody listening | `{% fixi_scripts %}` |
+| 7 | Cancel that does not cancel | `confirm=` / `ext-fx-confirm`; lint `L112` |
+| 8 | An unsafe request with no CSRF token | `{% fixi_scripts %}` |
+
+Rows 6 and 8 are fixed by one script tag, so each side is a small frame that
+differs from the other only in that tag.
 
 The pairs are data in [pitfalls/catalog.py](pitfalls/catalog.py), and every
 claim on the page is a test:
@@ -65,10 +69,9 @@ Those are covered by the package's own tests.
 - **FxResponseMixin**: Form handling with Fixi
 
 ### 4. Template Tags
-- `{% fx_attrs %}`: Generate Fixi attributes
-- `{% fx_csrf_token %}`: CSRF token for forms
-- `{% fixi_js %}`: Include the vendored Fixi.js
-- `{% fixi_events %}`: The `FX-Trigger` event shim
+- `{% fixi_scripts %}`: fixi.js, the `FX-Trigger` event shim, and the extension attributes
+- `{% fx_attrs %}`: Generate Fixi attributes, including `confirm=` and `debounce=`
+- `{% fx_csrf_token %}`: CSRF token for forms that must work without JavaScript
 
 ## Try It Out
 
