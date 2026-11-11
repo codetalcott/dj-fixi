@@ -131,7 +131,9 @@ def test_fx_attrs_rejects_a_trigger_with_htmx_modifiers():
 
 def test_fx_attrs_accepts_a_namespaced_trigger():
     """Colons are legitimate: fx:swapped is a real event name."""
-    assert 'fx-trigger="fx:swapped"' in render_tag("{% fx_attrs action='/t' trigger='fx:swapped' %}")
+    assert 'fx-trigger="fx:swapped"' in render_tag(
+        "{% fx_attrs action='/t' trigger='fx:swapped' %}"
+    )
 
 
 def test_fx_attrs_rejects_methods_fetch_refuses_and_keeps_the_rest():

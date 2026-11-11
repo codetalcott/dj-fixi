@@ -44,12 +44,16 @@ def no_content(request):
 
 
 def streamed(request):
-    return StreamingHttpResponse([b'<a fx-action="/x/" fx-swap="outerhtml">'], content_type="text/html")
+    return StreamingHttpResponse(
+        [b'<a fx-action="/x/" fx-swap="outerhtml">'], content_type="text/html"
+    )
 
 
 def echo(request):
     body = request.POST.get("a") or request.GET.get("a") or ""
-    return HttpResponse(f"{request.method} fx={request.headers.get('FX-Request')} ct={request.content_type} a={body}")
+    return HttpResponse(
+        f"{request.method} fx={request.headers.get('FX-Request')} ct={request.content_type} a={body}"
+    )
 
 
 urlpatterns = [

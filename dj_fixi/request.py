@@ -63,5 +63,7 @@ def redirect_note(method: str, path: str, response) -> str:
         note += ", and a 301/302 turns the POST into a GET"
     note += "."
     if location.split("?", 1)[0] == path + "/":
-        note += " This is CommonMiddleware's APPEND_SLASH: the fx-action is missing its trailing slash."
+        note += (
+            " This is CommonMiddleware's APPEND_SLASH: the fx-action is missing its trailing slash."
+        )
     return note

@@ -91,13 +91,17 @@ def test_w203_silent_for_clean_templates_and_htmx_inside_comments(tmp_path):
         "commented.html": '{# <a hx-get="/old/">old</a> #}{% comment %}hx-post="/y/"{% endcomment %}<b>ok</b>',
         "notes.txt": '<a hx-get="/x/">not a template</a>',
     }
-    with override_settings(TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.good"):
+    with override_settings(
+        TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.good"
+    ):
         assert check_ids() == []
 
 
 def test_w203_silent_when_no_dj_fixi_view_is_routed(tmp_path):
     files = {**GOOD_FILES, "htmx.html": '<a hx-get="/x/">x</a>'}
-    with override_settings(TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.fbv_only"):
+    with override_settings(
+        TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.fbv_only"
+    ):
         assert "dj_fixi.W203" not in check_ids()
 
 
@@ -107,14 +111,18 @@ def test_w203_silent_when_django_htmx_is_installed_too(tmp_path, monkeypatch):
     real = apps.is_installed
     monkeypatch.setattr(apps, "is_installed", lambda name: name == "django_htmx" or real(name))
     files = {**GOOD_FILES, "htmx.html": '<a hx-get="/x/">x</a>'}
-    with override_settings(TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.good"):
+    with override_settings(
+        TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.good"
+    ):
         assert "dj_fixi.W203" not in check_ids()
 
 
 def test_w203_silent_for_templates_under_site_packages(tmp_path, monkeypatch):
     files = {**GOOD_FILES, "vendored/htmx.html": '<a hx-get="/x/">x</a>'}
     templates = fs_templates(tmp_path, files)
-    monkeypatch.setattr("sysconfig.get_paths", lambda: {"purelib": str(tmp_path), "platlib": str(tmp_path)})
+    monkeypatch.setattr(
+        "sysconfig.get_paths", lambda: {"purelib": str(tmp_path), "platlib": str(tmp_path)}
+    )
     with override_settings(TEMPLATES=templates, ROOT_URLCONF="tests.urlconfs.good"):
         assert "dj_fixi.W203" not in check_ids()
 

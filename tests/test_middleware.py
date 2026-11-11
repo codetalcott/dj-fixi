@@ -96,7 +96,10 @@ LOCMEM = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "OPTIONS": {
             "loaders": [
-                ("django.template.loaders.locmem.Loader", {"m/page.html": "PAGE", "m/page_partial.html": "PART"})
+                (
+                    "django.template.loaders.locmem.Loader",
+                    {"m/page.html": "PAGE", "m/page_partial.html": "PART"},
+                )
             ]
         },
     }

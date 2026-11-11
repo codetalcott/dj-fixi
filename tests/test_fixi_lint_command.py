@@ -18,14 +18,16 @@ def ids(findings):
 def test_template_syntax_becomes_html_the_parser_can_judge():
     source = (
         '{% load fixi_tags %}{# <a hx-get="/old/"> #}\n'
-        "<a fx-action=\"{% url 'x' %}\" fx-swap=\"outerhtml\">x</a>\n"
+        '<a fx-action="{% url \'x\' %}" fx-swap="outerhtml">x</a>\n'
         "<button {% fx_attrs action='/y/' method='POST' %}>y</button>\n"
         '{% if ok %}<b fx-target="{{ sel }}" fx-action="{{ u }}">z</b>{% endif %}\n'
         '{% comment %}\nhx-post="/gone/"\n{% endcomment %}<i fx-swap="innerHTML">no action</i>'
     )
     findings = lint_template_source(source, file="t.html")
     assert ids(findings) == ["dj_fixi.L103", "dj_fixi.L110"]
-    assert findings[0].line == 2 and findings[0].file == "t.html"  # {% url %} is a value, not an empty action
+    assert (
+        findings[0].line == 2 and findings[0].file == "t.html"
+    )  # {% url %} is a value, not an empty action
     assert findings[1].line == 7  # comment lines still count
     stripped = strip_template_syntax(source)
     assert "hx-get" not in stripped and "hx-post" not in stripped
@@ -38,7 +40,9 @@ def test_source_mode_leaves_page_level_rules_off():
 
 
 def test_command_reports_findings_with_file_and_line_and_fails(tmp_path):
-    (tmp_path / "bad.html").write_text('<button hx-post="/x/">x</button>\n<a fx-action="/y/" fx-swap="outerhtml">y</a>')
+    (tmp_path / "bad.html").write_text(
+        '<button hx-post="/x/">x</button>\n<a fx-action="/y/" fx-swap="outerhtml">y</a>'
+    )
     out = io.StringIO()
     with pytest.raises(CommandError, match="1 error"):
         call_command("fixi_lint", str(tmp_path), stdout=out)
@@ -56,7 +60,9 @@ def test_command_is_quiet_on_clean_templates_and_strict_on_request(tmp_path):
     assert "1 template(s), 0 error(s), 0 warning(s)" in out.getvalue()
     call_command("fixi_lint", str(tmp_path / "warn.html"), stdout=io.StringIO())
     with pytest.raises(CommandError):
-        call_command("fixi_lint", str(tmp_path / "warn.html"), warnings_as_errors=True, stdout=io.StringIO())
+        call_command(
+            "fixi_lint", str(tmp_path / "warn.html"), warnings_as_errors=True, stdout=io.StringIO()
+        )
 
 
 def test_command_defaults_to_the_projects_template_directories(tmp_path):

@@ -22,14 +22,17 @@ TEMPLATES = [
             "loaders": [
                 (
                     "django.template.loaders.locmem.Loader",
-                    {"client/page.html": PAGE, "client/htmx.html": HTMX, "client/fragment.html": FRAGMENT},
+                    {
+                        "client/page.html": PAGE,
+                        "client/htmx.html": HTMX,
+                        "client/fragment.html": FRAGMENT,
+                    },
                 )
             ],
             "context_processors": ["django.template.context_processors.request"],
         },
     }
 ]
-
 
 
 @pytest.fixture(autouse=True)
@@ -93,10 +96,21 @@ def test_plain_get_never_raises_on_redirects():
 def test_helpers_send_the_header_and_fixi_shaped_bodies():
     client = FxTestClient()
     assert client.fx_get("/client/echo/", {"a": "1"}).content == b"GET fx=true ct= a=1"
-    assert client.fx_post("/client/echo/", {"a": "2"}).content.startswith(b"POST fx=true ct=multipart/form-data a=2")
-    assert client.fx_put("/client/echo/", {"a": "3"}).content == b"PUT fx=true ct=application/x-www-form-urlencoded a="
-    assert client.fx_patch("/client/echo/", {"a": "5"}).content == b"PATCH fx=true ct=application/x-www-form-urlencoded a="
-    assert client.fx_delete("/client/echo/?a=4").content.startswith(b"DELETE fx=true") and b"a=4" in client.fx_delete("/client/echo/?a=4").content
+    assert client.fx_post("/client/echo/", {"a": "2"}).content.startswith(
+        b"POST fx=true ct=multipart/form-data a=2"
+    )
+    assert (
+        client.fx_put("/client/echo/", {"a": "3"}).content
+        == b"PUT fx=true ct=application/x-www-form-urlencoded a="
+    )
+    assert (
+        client.fx_patch("/client/echo/", {"a": "5"}).content
+        == b"PATCH fx=true ct=application/x-www-form-urlencoded a="
+    )
+    assert (
+        client.fx_delete("/client/echo/?a=4").content.startswith(b"DELETE fx=true")
+        and b"a=4" in client.fx_delete("/client/echo/?a=4").content
+    )
     assert b"ct=application/json" in client.fx_post("/client/echo/", json={"a": 1}).content
 
 

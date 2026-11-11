@@ -39,7 +39,9 @@ console.error = (...args) => { __errors.push(args.map(String).join(" ")); origin
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "OPTIONS": {"loaders": [("django.template.loaders.locmem.Loader", {"browser/page.html": PAGE})]},
+        "OPTIONS": {
+            "loaders": [("django.template.loaders.locmem.Loader", {"browser/page.html": PAGE})]
+        },
     }
 ]
 
