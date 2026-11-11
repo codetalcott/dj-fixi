@@ -170,9 +170,13 @@ find . -name __pycache__ -type d -exec rm -rf {} +
 
 Two sibling repositories depend on this one. Check them when changing public API:
 
-- **dj-fixi-tables** (`../dj-fixi-tables`) imports `dj_fixi.request` and renders
-  `{% fixi_js %}` and `{% fixi_events %}` in its default page template. Removing
-  `{% fixi_cdn %}` in 0.5.0 broke it until it was updated.
+- **dj-fixi-tables** (`../dj-fixi-tables`,
+  [public](https://github.com/codetalcott/dj-fixi-tables)) imports
+  `dj_fixi.request`, renders `{% fixi_scripts %}` in its default page template,
+  and tests with `FxTestClient`. Removing `{% fixi_cdn %}` in 0.5.0 broke it
+  until it was updated, so CI's `downstream` job now runs its suite against
+  every change here. If that job fails, either the change breaks public API or
+  the tables repo needs a matching change first.
 - **dj-hx** (`../dj-hx`) vendors `dj_fixi/urlconf.py` verbatim under its own
   docstring. After changing that file, run `tools/sync_shared.py` there.
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- [dj-fixi-tables](https://github.com/codetalcott/dj-fixi-tables) is published,
+  and the README and `llms.txt` link to it. CI gained a `downstream` job that
+  runs that package's suite against each change here.
+- `llms.txt` said `dj_fixi.urlconf` was used by dj-fixi-tables. It is not.
+
 ## 0.6.1 — 2026-11-11
 
 ### Fixed
