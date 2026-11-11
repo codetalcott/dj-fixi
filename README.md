@@ -6,7 +6,7 @@ Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi) - a lig
 
 - 🎯 **Automatic Fixi Detection** - Middleware detects `FX-Request` headers
 - 🔄 **Smart Template Selection** - Serve fragments for Fixi requests, full pages otherwise
-- 🏗️ **View Mixins** - Drop-in enhancements for class-based views (`FxResponseMixin`, `ContextPersistenceMixin`)
+- 🏗️ **View Mixin** - `FxResponseMixin` makes Django's form and delete views answer Fixi requests with fragments
 - 🎨 **Template Tags** - Helpers for Fixi attributes, CSRF, and loading the (vendored) Fixi.js
 - 📝 **Form Helpers** - `FxForm`/`FxModelForm` render Django forms with Fixi attributes
 - 🧪 **Testing Utilities** - A test client that lints every response for what fixi.js would silently ignore, and refuses to guess about redirects

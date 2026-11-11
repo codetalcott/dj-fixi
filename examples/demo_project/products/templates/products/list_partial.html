@@ -48,7 +48,9 @@
 <div class="pagination">
     {% if page_obj.has_previous %}
         <a href="?page={{ page_obj.previous_page_number }}&{{ query_string }}"
-           {% fx_attrs action="." target="#product-container" swap="innerHTML" %}>
+           fx-action="?page={{ page_obj.previous_page_number }}&{{ query_string }}"
+           fx-target="#product-container"
+           fx-swap="innerHTML">
             Previous
         </a>
     {% endif %}
@@ -57,7 +59,9 @@
 
     {% if page_obj.has_next %}
         <a href="?page={{ page_obj.next_page_number }}&{{ query_string }}"
-           {% fx_attrs action="." target="#product-container" swap="innerHTML" %}>
+           fx-action="?page={{ page_obj.next_page_number }}&{{ query_string }}"
+           fx-target="#product-container"
+           fx-swap="innerHTML">
             Next
         </a>
     {% endif %}

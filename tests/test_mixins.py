@@ -2,8 +2,7 @@
 Tests for dj_fixi.mixins.
 
 Covers FxResponseMixin (form_valid for create/update/delete, form_invalid,
-fragment template selection), ContextPersistenceMixin (sort validation, query
-string). These modules previously had no coverage.
+fragment template selection).
 """
 
 import json
@@ -13,9 +12,9 @@ from django import forms
 from django.contrib.auth.models import Group
 from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory, override_settings
-from django.views.generic import CreateView, DeleteView, ListView, TemplateView
+from django.views.generic import CreateView, DeleteView, TemplateView
 
-from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin
+from dj_fixi.mixins import FxResponseMixin
 
 # locmem templates so fragment rendering works without app template dirs.
 LOCMEM_TEMPLATES = [
@@ -188,54 +187,6 @@ def test_fxresponsemixin_without_a_partial_keeps_the_page_names(rf):
     view.setup(_fx(rf.get("/")))
 
     assert view.get_template_names() == ["products/list.html"]
-
-
-# --------------------------------------------------------------------------- #
-# ContextPersistenceMixin
-# --------------------------------------------------------------------------- #
-
-
-@pytest.mark.django_db
-def test_context_persistence_invalid_sort_ignored(rf):
-    class V(ContextPersistenceMixin, ListView):
-        model = Group
-        ordering = ["id"]
-
-    request = rf.get("/?sort=bogus")
-    view = V()
-    view.setup(request)
-    qs = view.get_queryset()  # must not raise
-
-    assert qs.query.order_by == ("id",)  # bogus sort not applied
-
-
-@pytest.mark.django_db
-def test_context_persistence_valid_sort_applied(rf):
-    class V(ContextPersistenceMixin, ListView):
-        model = Group
-
-    request = rf.get("/?sort=name")
-    view = V()
-    view.setup(request)
-    qs = view.get_queryset()
-
-    assert qs.query.order_by == ("name",)
-
-
-@pytest.mark.django_db
-def test_context_persistence_query_string(rf):
-    class V(ContextPersistenceMixin, ListView):
-        model = Group
-
-    request = rf.get("/?q=test&page=2&extra=1")
-    view = V()
-    view.setup(request)
-    view.object_list = Group.objects.none()
-    ctx = view.get_context_data(object_list=view.object_list)
-
-    assert "q=test" in ctx["query_string"]
-    assert ctx["preserved_params"]["q"] == "test"
-    assert ctx["current_sort"] == ""
 
 
 # --------------------------------------------------------------------------- #

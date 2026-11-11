@@ -17,7 +17,7 @@ from django.test import RequestFactory
 from django.views.generic import FormView
 
 from dj_fixi.forms import FxForm
-from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin
+from dj_fixi.mixins import FxResponseMixin
 
 LOCMEM_TEMPLATES = [
     {
@@ -33,66 +33,6 @@ LOCMEM_TEMPLATES = [
 @pytest.fixture
 def rf():
     return RequestFactory()
-
-
-# --------------------------------------------------------------------------- #
-# F3 -- filterset_fields was documented, gated a branch, and then discarded
-# --------------------------------------------------------------------------- #
-
-
-class _Filtered(ContextPersistenceMixin):
-    filterset_fields = ["codename"]
-
-    def __init__(self, request):
-        self.request = request
-
-
-def test_filterset_fields_actually_filters(rf):
-    view = _Filtered(rf.get("/", {"codename": "add_group"}))
-    qs = view.filter_queryset(Permission.objects.all())
-    assert "codename" in str(qs.query)
-
-
-def test_filterset_fields_is_a_noop_when_not_supplied(rf):
-    view = _Filtered(rf.get("/"))
-    base = Permission.objects.all()
-    assert view.filter_queryset(base).query.where == base.query.where
-
-
-def test_unknown_filterset_field_raises(rf):
-    class Bad(_Filtered):
-        filterset_fields = ["nonexistent"]
-
-    with pytest.raises(ImproperlyConfigured, match="nonexistent"):
-        Bad(rf.get("/")).filter_queryset(Permission.objects.all())
-
-
-def test_filterset_field_with_a_lookup_raises_and_says_what_to_use(rf):
-    class Bad(_Filtered):
-        filterset_fields = ["codename__icontains"]
-
-    with pytest.raises(ImproperlyConfigured, match="filterset_class"):
-        Bad(rf.get("/")).filter_queryset(Permission.objects.all())
-
-
-# --------------------------------------------------------------------------- #
-# F10 -- a valid related-field sort was validated away and silently dropped
-# --------------------------------------------------------------------------- #
-
-
-@pytest.mark.parametrize(
-    "path,expected",
-    [
-        ("codename", True),
-        ("content_type__app_label", True),  # used to be rejected
-        ("content_type", True),
-        ("nope", False),
-        ("content_type__nope", False),
-        ("codename__nope", False),  # codename has no related model
-    ],
-)
-def test_sortable_paths(path, expected):
-    assert ContextPersistenceMixin._is_sortable(Permission, path) is expected
 
 
 # --------------------------------------------------------------------------- #

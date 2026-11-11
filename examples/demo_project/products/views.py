@@ -3,20 +3,20 @@
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
-from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin
+from dj_fixi.mixins import FxResponseMixin
 from dj_fixi.shortcuts import render_fx
 from dj_fixi.views import FxView
 
 from .models import Product
 
 
-class ProductListView(ContextPersistenceMixin, FxView, ListView):
+class ProductListView(FxView, ListView):
     """
     List products with automatic fragment serving for Fixi requests.
 
     Demonstrates:
     - FxView for automatic template selection
-    - ContextPersistenceMixin for filter/sort state
+    - Search and pagination that keep each other's query parameters
     """
 
     model = Product
@@ -32,6 +32,15 @@ class ProductListView(ContextPersistenceMixin, FxView, ListView):
         if search:
             queryset = queryset.filter(name__icontains=search)
         return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Everything in the query string except the page number, for the
+        # pagination links. (On Django 5.1+ the {% querystring %} tag does this.)
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        context["query_string"] = params.urlencode()
+        return context
 
 
 class ProductCreateView(FxResponseMixin, CreateView):

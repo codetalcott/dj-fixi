@@ -30,7 +30,6 @@ This project was created by adapting code from:
 
 4. **Mixins** ([dj_fixi/mixins.py](dj_fixi/mixins.py))
    - `FxResponseMixin`: Fragment template handling, form validation
-   - `ContextPersistenceMixin`: URL state preservation
 
 5. **Template Tags** ([dj_fixi/templatetags/fixi_tags.py](dj_fixi/templatetags/fixi_tags.py))
    - `{% fx_attrs %}`: Generate Fixi attributes

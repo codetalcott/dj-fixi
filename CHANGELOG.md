@@ -4,6 +4,16 @@
 
 ### Removed
 
+- **`ContextPersistenceMixin`.** Filtering, sorting and query-string
+  bookkeeping are not Fixi concerns, and its versions of them were wrong in
+  ways that did not show: `query_string` included the current `page`, so a
+  `?page=3&{{ query_string }}` link from page 2 led back to page 2; repeated
+  parameters (`?tag=a&tag=b`) kept only the last value; and `?sort=` accepted
+  any field path on the model, relations included, with no allow-list. Use
+  django-filter for filtering, `{% querystring %}` (Django 5.1+) or three
+  lines in `get_context_data` for links (see the demo's `ProductListView`),
+  and an explicit allow-list for sorting. With it gone, `get_queryset` is no
+  longer a hook E101/W102 watch.
 - **`OptimizedQueryMixin`.** It wrapped `select_related`/`prefetch_related`
   and had nothing to do with Fixi. Call them in `get_queryset`.
 - **`{% fixi_cdn %}`**, deprecated since 0.2.0. Use `{% fixi_js %}`, which
@@ -17,6 +27,11 @@
   otherwise Fixi requests get `template_name`, and W202 says so. W204, which
   existed to announce this removal, is gone with it. Announced in 0.4.0 as a
   0.5 change; nothing outside this repository depended on the derivation.
+
+### Fixed
+
+- The demo's pagination links carried no page number in `fx-action`, so under
+  Fixi "Next" always fetched page one.
 
 ### Added
 

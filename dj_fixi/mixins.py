@@ -1,146 +1,22 @@
 """
 Django CBV mixins for Fixi.js integration.
 
-Simplified to include only essential, non-opinionated mixins.
+``FxResponseMixin`` is the only one: it makes Django's form and delete views
+answer Fixi requests with fragments.
 """
 
 import inspect
 import json
 import logging
 from typing import Any
-from urllib.parse import urlencode
 
-from django.core.exceptions import FieldDoesNotExist, ImproperlyConfigured
-from django.db import models
+from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpResponse
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from .request import is_fx as _is_fx
 
 logger = logging.getLogger(__name__)
-
-
-class ContextPersistenceMixin:
-    """
-    Preserves user context (filters, sorting, pagination) across navigation.
-
-    Works with both Fixi and regular requests.
-
-    Input Contract:
-        - request.GET contains filter params, 'sort', and 'page'
-        - filterset_class or filterset_fields must be defined on the view
-
-    Output Contract:
-        - Adds 'query_string' and 'preserved_params' to template context
-        - Modifies queryset based on URL parameters
-    """
-
-    filterset_class: type | None = None
-    filterset_fields: list[str] | None = None
-    preserved_params: list[str] = ["sort", "page", "q"]
-
-    def get_queryset(self) -> models.QuerySet:
-        """Apply filtering and sorting from URL parameters."""
-        queryset = super().get_queryset()
-
-        # Apply filtering
-        if self.filterset_class:
-            filterset = self.get_filterset(queryset)
-            if filterset is not None:
-                queryset = filterset.qs
-                self.filterset = filterset
-        elif self.filterset_fields:
-            queryset = self.filter_queryset(queryset)
-
-        # Apply sorting with validation
-        sort_param = self.request.GET.get("sort", "")
-        if sort_param:
-            # Validate against the queryset's model, which is always available
-            # even when the view sets ``queryset`` rather than ``model``. Sort
-            # values come from the query string, so an unknown one is ignored
-            # rather than raised -- but a *valid* related-field sort such as
-            # ``category__name`` must work, which means walking the segments.
-            if self._is_sortable(queryset.model, sort_param.lstrip("-")):
-                queryset = queryset.order_by(sort_param)
-            else:
-                logger.warning("Invalid sort field: %s", sort_param.lstrip("-"))
-
-        return queryset
-
-    def get_filterset(self, queryset: models.QuerySet) -> Any | None:
-        """Initialize filterset with current queryset and request."""
-        if self.filterset_class:
-            return self.filterset_class(self.request.GET, queryset=queryset, request=self.request)
-        return None
-
-    def filter_queryset(self, queryset: models.QuerySet) -> models.QuerySet:
-        """
-        Apply ``filterset_fields`` from ``request.GET``, without a filter library.
-
-        Each declared name is checked against the model up front, so a typo in
-        ``filterset_fields`` raises ImproperlyConfigured instead of quietly
-        filtering nothing. Values absent from the query string are skipped, so
-        this is a no-op until the user actually filters.
-
-        Only exact matches on concrete fields are supported. For lookups
-        (``price__gte``), relations, or custom widgets, set ``filterset_class``.
-        """
-        lookups = {}
-        for field_name in self.filterset_fields:
-            if "__" in field_name:
-                raise ImproperlyConfigured(
-                    f"{type(self).__name__}.filterset_fields contains "
-                    f"{field_name!r}, but filterset_fields only supports exact "
-                    "matches on concrete fields. Use filterset_class for lookups."
-                )
-            try:
-                queryset.model._meta.get_field(field_name)
-            except FieldDoesNotExist as exc:
-                raise ImproperlyConfigured(
-                    f"{type(self).__name__}.filterset_fields contains "
-                    f"{field_name!r}, which is not a field on "
-                    f"{queryset.model.__name__}."
-                ) from exc
-
-            value = self.request.GET.get(field_name)
-            if value:
-                lookups[field_name] = value
-
-        return queryset.filter(**lookups) if lookups else queryset
-
-    @staticmethod
-    def _is_sortable(model: type[models.Model], path: str) -> bool:
-        """True when ``path`` (possibly ``a__b__c``) resolves to a field."""
-        for segment in path.split("__"):
-            if model is None:
-                return False
-            try:
-                field = model._meta.get_field(segment)
-            except FieldDoesNotExist:
-                return False
-            model = field.related_model
-        return True
-
-    def get_context_data(self, **kwargs) -> dict[str, Any]:
-        """Add preserved parameters to context."""
-        context = super().get_context_data(**kwargs)
-
-        # Build query string for current state
-        params = {}
-        for key in set(self.preserved_params + list(self.request.GET.keys())):
-            value = self.request.GET.get(key)
-            if value:
-                params[key] = value
-
-        context["query_string"] = urlencode(params)
-        context["preserved_params"] = params
-        context["current_sort"] = self.request.GET.get("sort", "")
-
-        # Add filterset to context if available
-        if hasattr(self, "filterset"):
-            context["filter"] = self.filterset
-
-        return context
 
 
 class FxResponseMixin:
