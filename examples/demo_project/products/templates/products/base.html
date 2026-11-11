@@ -28,6 +28,22 @@
             // cfg.confirm and sends nothing if it resolves falsy.
             const question = e.target.dataset?.confirm;
             if (question) e.detail.cfg.confirm = () => confirm(question);
+            // Active search: the newest keystroke wins. fixi drops a request made
+            // while another from the same element is in flight; abort the older
+            // one and let this one through instead.
+            if (e.target.matches?.("[data-active-search]")) {
+                e.detail.requests.forEach((request) => request.abort());
+                e.detail.cfg.drop = false;
+            }
+        });
+
+        // Active search, part one: wait for a pause in typing, then fire the
+        // event the input's fx-trigger names.
+        let typing;
+        document.addEventListener("input", (e) => {
+            if (!e.target.matches("[data-active-search]")) return;
+            clearTimeout(typing);
+            typing = setTimeout(() => e.target.dispatchEvent(new Event("active-search")), 250);
         });
 
         // fixi-events.js turns the FX-Trigger response header into these CustomEvents.

@@ -29,6 +29,7 @@ def test_shim_guards_use_fixi_predicates():
     assert 'addEventListener("fx:config"' in SHIM and "cfg.target === elt" in SHIM
     assert "swap in cfg.target" in SHIM and "/(before|after)(begin|end)/.test(swap)" in SHIM
     assert 'addEventListener("fx:error"' in SHIM
+    assert 'error?.name === "AbortError"' in SHIM  # an abort made on purpose is not a failure
 
 
 def test_fixi_js_lines_the_shim_depends_on():

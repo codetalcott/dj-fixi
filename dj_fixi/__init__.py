@@ -2,7 +2,7 @@
 dj-fixi: Django integration for Fixi.js
 """
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"
 
 from .middleware import FxMiddleware
 from .mixins import FxResponseMixin
