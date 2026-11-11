@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.1 — 2026-11-11
+
+### Fixed
+
+- **The demo's Delete button deleted when the user clicked Cancel.** It used
+  `onclick="return confirm(...)"`. Returning false from an inline handler only
+  calls `preventDefault()`, and fixi never reads `defaultPrevented`, so its own
+  listener sent the DELETE anyway (confirmed in Chrome). The same attribute put
+  the product name inside a JavaScript string, where HTML escaping does not
+  protect it. The button now carries `data-confirm`, and the demo's `fx:config`
+  listener turns that into `cfg.confirm`, which fixi awaits.
+
+### Added
+
+- **`dj_fixi.L112`** (error): an inline `confirm()` in the handler for the event
+  fixi listens for on that element (`onclick` by default, `onsubmit` on a form,
+  `onchange` on an input, or `on<fx-trigger>`). `FxTestClient` raises on it and
+  `manage.py fixi_lint` reports it.
+- CI runs `manage.py fixi_lint` on the demo.
+
 ## 0.5.0 — 2026-11-11
 
 ### Removed

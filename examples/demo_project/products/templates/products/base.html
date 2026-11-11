@@ -23,6 +23,10 @@
         const csrftoken = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
         document.addEventListener("fx:config", (e) => {
             if (csrftoken) e.detail.cfg.headers["X-CSRFToken"] = csrftoken;
+            // Ask first when the control carries data-confirm. fixi awaits
+            // cfg.confirm and sends nothing if it resolves falsy.
+            const question = e.target.dataset?.confirm;
+            if (question) e.detail.cfg.confirm = () => confirm(question);
         });
 
         // fixi-events.js turns the FX-Trigger response header into these CustomEvents.

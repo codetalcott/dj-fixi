@@ -82,6 +82,7 @@ FINDING_IDS = {
     "dj_fixi.L109": "an id that fx-target points at appears more than once; fixi takes the first",
     "dj_fixi.L110": "fx-method/target/swap/trigger on an element with no fx-action; fixi never initialises it",
     "dj_fixi.L111": "a full HTML document answering a Fixi request",
+    "dj_fixi.L112": "inline confirm() on the event fixi listens for; Cancel does not stop the request",
 }
 
 _HTMX_TRANSLATIONS = {
@@ -254,6 +255,9 @@ def parse(html: str) -> _TreeBuilder:
 _ID_TARGET = re.compile(r"^#([\w-]+)$")
 _BARE_WORD = re.compile(r"^[A-Za-z][\w-]*$")
 _TEMPLATE_VAR = "{{"  # a value still carrying template syntax cannot be judged
+_CONFIRM_CALL = re.compile(r"\bconfirm\s*\(")
+#: fixi.js:74 -- the event an element listens for when it has no fx-trigger.
+_CHANGE_TAGS = {"select", "textarea"}
 _HTMX_EXTENDED = re.compile(r"^(closest|next|previous|find|findAll|this|global)\b")
 #: Swap styles that exist in htmx and not in fixi; anything else unknown is an
 #: element property fixi will assign (fixi.js:63), which is a documented use.
@@ -315,6 +319,8 @@ class _Linter:
                 m = _ID_TARGET.match(target.strip())
                 if m:
                     referenced[m.group(1)] = node
+            if has_action:
+                self.inline_confirm(node)
             if not has_action:
                 present = sorted(n for n in node.attrs if n in FX_CONTROL_ATTRIBUTES)
                 if present:
@@ -349,6 +355,40 @@ class _Linter:
                     "the control's target. Render a fragment for Fixi requests (partial_template, render_fx).",
                 )
         return self.findings
+
+    def inline_confirm(self, node: Node) -> None:
+        """
+        ``onclick="return confirm(...)"`` on a fixi control does not guard it.
+
+        Returning false from an inline handler only calls ``preventDefault()``.
+        fixi's listener is a second listener on the same element and never reads
+        ``defaultPrevented``, so it runs anyway: the user clicks Cancel and the
+        request is sent. Only the handler for the event fixi listens for matters.
+        """
+        trigger = node.attrs.get("fx-trigger")
+        if trigger is None:
+            if node.tag == "form":
+                trigger = "submit"
+            elif node.tag in _CHANGE_TAGS or (
+                node.tag == "input" and node.attrs.get("type") != "button"
+            ):
+                trigger = "change"
+            else:
+                trigger = "click"
+        if _TEMPLATE_VAR in trigger:
+            return
+        handler = node.attrs.get(f"on{trigger.strip().lower()}")
+        if handler and _CONFIRM_CALL.search(handler):
+            self.add(
+                "dj_fixi.L112",
+                "error",
+                node,
+                f'on{trigger}="...confirm(...)" does not guard this control: fixi never checks '
+                "defaultPrevented, so choosing Cancel still sends the request. Remove the inline "
+                "handler and set cfg.confirm in an fx:config listener, e.g. "
+                "evt.detail.cfg.confirm = () => confirm(message).",
+                "fixi.js:42-45",
+            )
 
     def htmx_attribute(self, node: Node, name: str) -> None:
         level = (
