@@ -82,6 +82,7 @@ def test_form_that_redirects(page):
     page.wait_for_function("document.getElementById('events-count').textContent === '1'")
     assert page.locator("#redirect-fixed .live .note-form").count() == 1
     assert page.input_value("#redirect-fixed input[name=text]") == ""  # blank, ready for the next
+    assert page.locator("#redirect-fixed .notes li").all_inner_texts() == ["from the dj-fixi form"]
 
     assert page.locator("section.pitfall").count() == 8
     page.fill("#redirect-naive input[name=text]", "from the naive form")
@@ -89,6 +90,8 @@ def test_form_that_redirects(page):
     # the redirect's target, the whole pitfalls page, replaced the form
     page.wait_for_selector("#redirect-naive .live h1 >> text=Pitfalls")
     assert page.locator("#redirect-naive .live section.pitfall").count() == 8
+    # it was saved all the same: the page that replaced the form lists it
+    assert "from the naive form" in page.inner_text("#redirect-naive .live")
     assert page.locator("section.pitfall").count() == 16
 
 

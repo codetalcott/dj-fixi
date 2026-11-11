@@ -61,7 +61,9 @@ def test_a_redirect_answering_a_fixi_post_is_refused_by_the_test_client():
     response = fx.fx_post(reverse("pitfalls:note_fixed"), {"text": "hello again"})
     assert response.status_code == 200 and "formSuccess" in response["FX-Trigger"]
     assert 'class="note-form"' in response.content.decode()
-    assert 'value="hello again"' not in response.content.decode()  # blank after a create
+    html = response.content.decode()
+    assert 'value="hello again"' not in html  # the form is blank after a create
+    assert "<li>hello again</li>" in html and "<li>hello</li>" in html  # and the list has both
     assert Note.objects.count() == 2
 
     invalid = fx.fx_post(reverse("pitfalls:note_fixed"), {"text": ""})

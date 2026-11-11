@@ -115,15 +115,17 @@ PITFALLS = [
         title="A form that redirects on success",
         problem=(
             "A normal Django form view answers a valid POST with a redirect. fetch follows it "
-            "before fixi sees anything, and the page it leads to replaces the form."
+            "before fixi sees anything, and the page it leads to replaces the form. Add a note "
+            "on each side: both save it, and only one leaves you with a form and a list."
         ),
         naive="""\
 {% include "pitfalls/note_form.html" with action=note_naive_url %}""",
         fixed="""\
 {% include "pitfalls/note_form.html" with action=note_fixed_url %}""",
         fix=(
-            "FxResponseMixin answers a Fixi POST with the form fragment (blank after a create, "
-            "with errors and a 422 when invalid) and an FX-Trigger event."
+            "FxResponseMixin answers a Fixi POST with the fragment: the form (blank after a "
+            "create, with errors and a 422 when invalid), the list via fx_collection, and an "
+            "FX-Trigger event."
         ),
         caught_by="FxTestClient raises FxRedirectError when a Fixi request is answered with a redirect.",
     ),

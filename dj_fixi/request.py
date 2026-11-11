@@ -12,7 +12,7 @@ from django.utils.cache import patch_vary_headers
 
 FX_REQUEST_HEADER = "FX-Request"
 
-__all__ = ["FX_REQUEST_HEADER", "is_fx", "vary_on_fx", "redirect_note"]
+__all__ = ["FX_REQUEST_HEADER", "is_fx", "vary_on_fx", "redirect_note", "header_text"]
 
 
 def is_fx(request) -> bool:
@@ -67,3 +67,19 @@ def redirect_note(method: str, path: str, response) -> str:
             " This is CommonMiddleware's APPEND_SLASH: the fx-action is missing its trailing slash."
         )
     return note
+
+
+def header_text(value) -> str:
+    """
+    ``value`` as an exact ``str``, which is the only thing a WSGI server accepts.
+
+    A template name is often a ``SafeString``: ``{% include "x.html" %}`` loads
+    its template under the literal from the template source, which Django marks
+    safe, and the cached loader then hands that same object to everyone who
+    asks for ``x.html`` afterwards. ``str()`` of a ``str`` subclass returns the
+    subclass, and wsgiref (``runserver``) asserts ``type(value) is str``, so the
+    name went out as a header and the response became a 500, on the development
+    server only and only when an include happened to load the template first.
+    A full slice is how to get the plain string back.
+    """
+    return str(value)[:]

@@ -41,6 +41,7 @@ def snippet_context(request, token: str) -> dict:
         "note_naive_url": reverse("pitfalls:note_naive"),
         "note_fixed_url": reverse("pitfalls:note_fixed"),
         "form": NoteCreate().get_form_class()(),
+        "notes": recent_notes(),
     }
 
 
@@ -78,6 +79,11 @@ def details(request):
 # --- a form that redirects on success -------------------------------------
 
 
+def recent_notes(view=None):
+    """The five newest notes: what both note forms show beneath them."""
+    return Note.objects.order_by("-pk")[:5]
+
+
 class NoteCreateNaive(CreateView):
     """Naive: Django's own behaviour, a redirect after a valid POST."""
 
@@ -87,17 +93,26 @@ class NoteCreateNaive(CreateView):
     success_url = reverse_lazy("pitfalls:index")
 
     def get_context_data(self, **kwargs):
-        return super().get_context_data(action=self.request.path, **kwargs)
+        return super().get_context_data(action=self.request.path, notes=recent_notes(), **kwargs)
 
 
 class NoteCreate(FxResponseMixin, CreateView):
-    """dj-fixi: a Fixi POST gets the form fragment back, and an event."""
+    """
+    dj-fixi: a Fixi POST gets the fragment back (a blank form and the list with
+    the new note in it) and an event.
+
+    ``fx_collection`` is what puts the list in the fragment's context. A create
+    view has no ``object_list`` of its own, so without it every project
+    re-queries the list by hand in ``get_context_data``.
+    """
 
     model = Note
     fields = ["text"]
     template_name = "pitfalls/note_page.html"
     partial_template = "pitfalls/note_form.html"
     success_url = reverse_lazy("pitfalls:index")
+    fx_collection = recent_notes
+    fx_collection_name = "notes"
 
     def get_context_data(self, **kwargs):
         return super().get_context_data(action=self.request.path, **kwargs)

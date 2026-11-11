@@ -148,3 +148,51 @@ def test_streaming_and_non_html_responses_are_left_alone(rf, caplog):
         with caplog.at_level("WARNING", logger="dj_fixi.middleware"):
             FxMiddleware(factory)(rf.get("/x/", HTTP_FX_REQUEST="true"))
     assert caplog.messages == []
+
+
+# ------------------------------------------------------------------ 0.6.1
+
+
+INCLUDES = {
+    "outer.html": '{% include "inner.html" %}',
+    "inner.html": "<p>fragment</p>",
+}
+CACHED = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "OPTIONS": {
+            "loaders": [
+                (
+                    "django.template.loaders.cached.Loader",
+                    [("django.template.loaders.locmem.Loader", INCLUDES)],
+                )
+            ]
+        },
+    }
+]
+
+
+@override_settings(DEBUG=True, TEMPLATES=CACHED)
+def test_every_header_is_an_exact_str_even_when_an_include_loaded_the_template_first(rf):
+    """
+    wsgiref (runserver) asserts ``type(value) is str`` and answers 500 otherwise.
+
+    ``{% include "inner.html" %}`` loads the template under a SafeString name,
+    and the cached loader hands that object to the next request for it.
+    """
+    from django.template.loader import render_to_string
+    from django.template.response import TemplateResponse
+
+    from dj_fixi.shortcuts import render_fx
+
+    render_to_string("outer.html")  # the include gets there first
+
+    def view(request):
+        return TemplateResponse(request, "inner.html").render()
+
+    for answer in (
+        FxMiddleware(view)(rf.get("/x/", HTTP_FX_REQUEST="true")),
+        FxMiddleware(lambda r: render_fx(r, "inner.html"))(rf.get("/x/", HTTP_FX_REQUEST="true")),
+    ):
+        assert answer["X-FX-Template"] == "inner.html"
+        assert all(type(k) is str and type(v) is str for k, v in answer.items())
