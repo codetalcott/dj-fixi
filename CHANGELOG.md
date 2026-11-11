@@ -1,10 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.5.3 — 2026-11-11
 
-No change to the package.
+### Fixed
+
+- **`fixi-events.js` reported a deliberate abort as a failed request.** Calling
+  `cfg.abort()` on an in-flight request (the way to let the newest keystroke win
+  in an active search) rejects its fetch with `AbortError`, which the `fx:error`
+  guard logged as "request failed". Aborts are no longer reported.
 
 ### Demo
+
+- **Active search on the product list.** The list filters as you type: the
+  demo debounces keystrokes and dispatches the event the input's `fx-trigger`
+  names (fixi has no `delay` modifier), and aborts the older request so a slow
+  answer cannot overwrite a newer one. Enter and no-JavaScript still work
+  through the form. Five browser tests cover it.
 
 - **The demo starts.** It had no migrations, so following its README ended in
   `no such table: products_product`. Migrations are committed, and

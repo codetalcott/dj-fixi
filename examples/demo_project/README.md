@@ -74,7 +74,7 @@ Those are covered by the package's own tests.
 
 Visit http://localhost:8000 and:
 
-1. **Search and page through products** - The list swaps in place; the page doesn't reload
+1. **Search as you type, and page through products** - The list filters after a short pause in typing and swaps in place; the page doesn't reload
 2. **Add a product** - Form validation with Fixi
 3. **Edit a product** - Inline updates
 4. **Delete a product** - Confirmation with Fixi

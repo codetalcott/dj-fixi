@@ -23,7 +23,8 @@
  * Guards. fixi.js is silent about three mistakes: an fx-target selector that
  * matches nothing (fixi swaps into the element itself, fixi.js:21), a swap
  * spelling it cannot perform (it throws after the request, fixi.js:61-65), and
- * a request that failed (fixi.js:51-53 swallows the error). Each is reported
+ * a request that failed (fixi.js:51-53 swallows the error; one aborted with
+ * cfg.abort() is not a failure and is not reported). Each is reported
  * with console.error, using fixi's own predicates on the real DOM.
  */
 (() => {
@@ -90,6 +91,7 @@
 
   document.addEventListener("fx:error", (evt) => {
     const { cfg, error } = evt.detail ?? {};
+    if (error?.name === "AbortError") return; // cfg.abort() was called on purpose: not a failure
     console.error(`dj-fixi: request ${cfg?.method ?? ""} ${cfg?.action ?? ""} failed; fixi swallows this and swaps nothing.`, error, evt.target);
   });
 })();
