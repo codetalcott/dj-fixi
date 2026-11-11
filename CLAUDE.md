@@ -94,10 +94,10 @@ same change; the test will fail on the first of those if you forget.
 uv venv && uv pip install -e ".[dev]" && source .venv/bin/activate
 pytest
 ruff check . && ruff format --check .     # the formatter also covers code blocks in the .md files
-(cd examples/demo_project && python manage.py check --fail-level WARNING)
+(cd examples/demo_project && python manage.py check --fail-level WARNING && python manage.py fixi_lint)
 ```
 
-CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same four, with
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same, with
 ruff pinned to one version so a formatter release cannot turn main red, on
 Python 3.10 / Django 4.2, 3.12 / 5.2 and 3.13 / 6.0. Supporting 4.2 means no
 `{% querystring %}` and no template partials in anything the package itself renders.

@@ -125,3 +125,18 @@ def test_a_fragment_referencing_ids_that_live_in_the_page():
         == []
     )
     assert lint_html('<a fx-action="/x/" fx-target="#something-on-the-page">x</a>') == []
+
+
+def test_inline_handlers_that_do_not_guard_the_fixi_event():
+    """L112 is about confirm() on the event fixi listens for, and nothing else."""
+    body = (
+        '<div id="r"></div>'
+        # a click handler that is not a confirmation
+        "<button fx-action='/a/' fx-target='#r' onclick=\"track('a')\">a</button>"
+        # confirm() on an event fixi is not listening for on this element
+        "<button fx-action='/b/' fx-target='#r' fx-trigger='dblclick' onclick=\"return confirm('?')\">b</button>"
+        "<form fx-action='/c/' fx-target='#r' onclick=\"return confirm('?')\"></form>"
+        # confirm() on a plain element fixi never touches
+        "<a href='/d/' onclick=\"return confirm('?')\">d</a>"
+    )
+    assert lint_html(page(body)) == []

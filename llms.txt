@@ -1,7 +1,7 @@
 # dj-fixi
 
 Django integration for Fixi.js. Server renders HTML; Fixi swaps it into the DOM.
-Version 0.5.0. Requires Django >= 4.2, Python >= 3.10. MIT.
+Version 0.5.1. Requires Django >= 4.2, Python >= 3.10. MIT.
 
 Read this before writing dj-fixi code. It is complete; you should not need to
 read the source.
@@ -208,6 +208,7 @@ fixi cannot act on; warnings are things it acts on differently than you meant.
     dj_fixi.L109  an id an fx-target points at appears twice; fixi takes the first
     dj_fixi.L110  fx-method/target/swap/trigger on an element without fx-action; never initialised
     dj_fixi.L111  a full HTML document answered a Fixi request
+    dj_fixi.L112  inline confirm() on the event fixi listens for; Cancel still sends the request
 
     python manage.py fixi_lint [paths...] [--warnings-as-errors]
     # the same rules over template source, without rendering; every project

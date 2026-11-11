@@ -1,5 +1,6 @@
 """One positive per lint rule, each tied to the fixi.js behaviour it reports."""
 
+import pytest
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 
 from dj_fixi.lint import Finding, format_findings, lint_html, lint_response, translate_htmx
@@ -123,3 +124,19 @@ def test_lint_response_skips_what_it_cannot_judge():
     )
     assert lint_response(HttpResponse("<a hx-get='/x'>x</a>", status=500)) == []
     assert ids(lint_response(HttpResponse("<a hx-get='/x'>x</a>"))) == ["dj_fixi.L101"]
+
+
+@pytest.mark.parametrize(
+    "control",
+    [
+        "<button fx-action='/x/' fx-method='DELETE' onclick=\"return confirm('Delete?')\">x</button>",
+        "<form fx-action='/x/' fx-method='POST' onsubmit=\"return confirm('Sure?')\"></form>",
+        "<select fx-action='/x/' onchange=\"if (!confirm('?')) return false\"></select>",
+        "<td fx-action='/x/' fx-trigger='dblclick' ondblclick=\"return window.confirm ('?')\">x</td>",
+    ],
+)
+def test_inline_confirm_on_the_fixi_event_is_an_error(control):
+    """Cancel only calls preventDefault(); fixi sends the request regardless."""
+    f = lint_html(control, full_document=False)
+    assert ids(f) == ["dj_fixi.L112"] and f[0].level == "error"
+    assert "cfg.confirm" in f[0].message
