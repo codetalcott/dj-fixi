@@ -194,8 +194,13 @@ def test_app_config_is_auto_discovered():
 def test_w203_names_the_htmx_attributes_and_their_translations(tmp_path):
     from .checks_support import GOOD_FILES, fs_templates
 
-    files = {**GOOD_FILES, "mixed.html": '<button hx-get="/x/" hx-target="#r" hx-boost="true">x</button>'}
-    with override_settings(TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.good"):
+    files = {
+        **GOOD_FILES,
+        "mixed.html": '<button hx-get="/x/" hx-target="#r" hx-boost="true">x</button>',
+    }
+    with override_settings(
+        TEMPLATES=fs_templates(tmp_path, files), ROOT_URLCONF="tests.urlconfs.good"
+    ):
         assert "dj_fixi.W203" in check_ids()
         hint = hint_for("dj_fixi.W203")
     assert "fx-action" in hint and "no fixi equivalent" in hint and "SILENCED_SYSTEM_CHECKS" in hint
@@ -203,5 +208,7 @@ def test_w203_names_the_htmx_attributes_and_their_translations(tmp_path):
 
 @override_settings(TEMPLATES=TEMPLATES, ROOT_URLCONF="tests.urlconfs.templates")
 def test_w201_explains_django_6_partial_syntax():
-    hints = [m.hint for m in run_checks(tags=["dj_fixi"]) if m.id == "dj_fixi.W201" and "#nope" in m.msg]
+    hints = [
+        m.hint for m in run_checks(tags=["dj_fixi"]) if m.id == "dj_fixi.W201" and "#nope" in m.msg
+    ]
     assert hints and ("partialdef" in hints[0] or "django-template-partials" in hints[0])

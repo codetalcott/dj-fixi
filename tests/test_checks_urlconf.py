@@ -23,7 +23,6 @@ class TestWalk:
         assert names("tests.urlconfs.good") == [
             "good-list",
             "good-create",
-            "good-stack",
             "good-template",
             "good-fbv",
         ]

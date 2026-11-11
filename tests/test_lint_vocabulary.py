@@ -8,7 +8,9 @@ import re
 
 from dj_fixi import attrs
 
-FIXI = (pathlib.Path(__file__).resolve().parent.parent / "dj_fixi/static/dj_fixi/fixi.js").read_text()
+FIXI = (
+    pathlib.Path(__file__).resolve().parent.parent / "dj_fixi/static/dj_fixi/fixi.js"
+).read_text()
 
 
 def test_fixi_reads_exactly_the_attributes_we_say_it_does():
@@ -16,7 +18,9 @@ def test_fixi_reads_exactly_the_attributes_we_say_it_does():
 
 
 def test_the_lines_each_rule_depends_on():
-    assert "let attr = (elt, name, defaultVal)=>elt.getAttribute(name) || defaultVal" in FIXI  # fx-action="" -> undefined
+    assert (
+        "let attr = (elt, name, defaultVal)=>elt.getAttribute(name) || defaultVal" in FIXI
+    )  # fx-action="" -> undefined
     assert 'method:attr(elt, "fx-method", "GET").toUpperCase()' in FIXI
     assert 'target:document.querySelector(attr(elt, "fx-target")) ?? elt' in FIXI
     assert "/(before|after)(begin|end)/.test(cfg.swap)" in FIXI

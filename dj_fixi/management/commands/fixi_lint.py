@@ -15,7 +15,9 @@ from dj_fixi.lint import iter_template_files, lint_template_source, template_dir
 
 
 class Command(BaseCommand):
-    help = "Lint template source for what fixi.js silently ignores (htmx attributes, bad swaps, ...)."
+    help = (
+        "Lint template source for what fixi.js silently ignores (htmx attributes, bad swaps, ...)."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(

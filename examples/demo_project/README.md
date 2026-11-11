@@ -42,19 +42,18 @@ python manage.py runserver
 
 ### 3. Mixins
 - **FxResponseMixin**: Form handling with Fixi
-- **ContextPersistenceMixin**: URL state preservation
-- **OptimizedQueryMixin**: Automatic query optimization
 
 ### 4. Template Tags
 - `{% fx_attrs %}`: Generate Fixi attributes
 - `{% fx_csrf_token %}`: CSRF token for forms
-- `{% fixi_cdn %}`: Include Fixi.js library
+- `{% fixi_js %}`: Include the vendored Fixi.js
+- `{% fixi_events %}`: The `FX-Trigger` event shim
 
 ## Try It Out
 
 Visit http://localhost:8000 and:
 
-1. **Search products** - Notice the URL updates, page doesn't reload
+1. **Search and page through products** - The list swaps in place; the page doesn't reload
 2. **Add a product** - Form validation with Fixi
 3. **Edit a product** - Inline updates
 4. **Delete a product** - Confirmation with Fixi

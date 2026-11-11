@@ -1,6 +1,6 @@
 [project]
 name = "dj-fixi"
-version = "0.4.0"
+version = "0.5.0"
 description = "Django integration for Fixi.js - server-side rendering with hypermedia"
 authors = [{name = "William Talcott"}]
 readme = "README.md"
@@ -19,7 +19,7 @@ Changelog = "https://github.com/codetalcott/dj-fixi/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 browser = ["playwright"]
 dev = [
-    "ruff>=0.1.0",
+    "ruff>=0.17",
     "pytest>=7.0",
     "pytest-django>=4.5",
 ]

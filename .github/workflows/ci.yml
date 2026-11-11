@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uvx ruff@0.17.4 check .
+      - run: uvx ruff@0.17.4 format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {python: "3.10", django: "4.2"}
+          - {python: "3.12", django: "5.2"}
+          - {python: "3.13", django: "6.0"}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: pytest
+        run: >
+          uv run --no-project --python ${{ matrix.python }}
+          --with "django~=${{ matrix.django }}.0" --with pytest --with pytest-django
+          --with-editable . pytest -q
+      - name: system checks on the demo
+        working-directory: examples/demo_project
+        run: >
+          uv run --no-project --python ${{ matrix.python }}
+          --with "django~=${{ matrix.django }}.0" --with-editable ../..
+          python manage.py check --fail-level WARNING

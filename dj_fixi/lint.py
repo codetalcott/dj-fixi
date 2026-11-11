@@ -53,7 +53,21 @@ __all__ = [
     "strip_template_syntax",
 ]
 
-VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+VOID = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "source",
+    "track",
+    "wbr",
+}
 
 #: Every finding this module can produce, for llms.txt and SILENCED_SYSTEM_CHECKS.
 FINDING_IDS = {
@@ -81,7 +95,24 @@ _HTMX_TRANSLATIONS = {
     "hx-trigger": "fx-trigger with one event name and no modifiers",
     "hx-confirm": "no attribute; set cfg.confirm in an fx:config listener",
 }
-_NO_EQUIVALENT = ("hx-boost", "hx-push-url", "hx-replace-url", "hx-include", "hx-vals", "hx-select", "hx-select-oob", "hx-swap-oob", "hx-indicator", "hx-sync", "hx-disable", "hx-ext", "hx-headers", "hx-encoding", "hx-preserve", "hx-history")
+_NO_EQUIVALENT = (
+    "hx-boost",
+    "hx-push-url",
+    "hx-replace-url",
+    "hx-include",
+    "hx-vals",
+    "hx-select",
+    "hx-select-oob",
+    "hx-swap-oob",
+    "hx-indicator",
+    "hx-sync",
+    "hx-disable",
+    "hx-ext",
+    "hx-headers",
+    "hx-encoding",
+    "hx-preserve",
+    "hx-history",
+)
 
 
 def translate_htmx(name: str) -> str:
@@ -148,7 +179,9 @@ def format_findings(findings: Iterable[Finding], where: str = "") -> str:
 class Node:
     __slots__ = ("tag", "attrs", "children", "parent", "line", "column")
 
-    def __init__(self, tag: str, attrs: dict[str, str | None], parent: Node | None, pos: tuple[int, int]):
+    def __init__(
+        self, tag: str, attrs: dict[str, str | None], parent: Node | None, pos: tuple[int, int]
+    ):
         self.tag = tag
         self.attrs = attrs
         self.children: list[Node] = []
@@ -224,11 +257,24 @@ _TEMPLATE_VAR = "{{"  # a value still carrying template syntax cannot be judged
 _HTMX_EXTENDED = re.compile(r"^(closest|next|previous|find|findAll|this|global)\b")
 #: Swap styles that exist in htmx and not in fixi; anything else unknown is an
 #: element property fixi will assign (fixi.js:63), which is a documented use.
-_HTMX_ONLY_SWAPS = {"delete", "innermorph", "outermorph", "outersync", "before", "after", "prepend", "append", "upsert", "download"}
+_HTMX_ONLY_SWAPS = {
+    "delete",
+    "innermorph",
+    "outermorph",
+    "outersync",
+    "before",
+    "after",
+    "prepend",
+    "append",
+    "upsert",
+    "download",
+}
 
 
 class _Linter:
-    def __init__(self, tree: _TreeBuilder, *, full_document: bool, is_fx: bool | None, file: str | None):
+    def __init__(
+        self, tree: _TreeBuilder, *, full_document: bool, is_fx: bool | None, file: str | None
+    ):
         self.tree = tree
         self.nodes = list(tree.root.descendants())
         self.full_document = full_document
@@ -244,8 +290,14 @@ class _Linter:
         self.loads_fixi = "fixi" in scripts
         self.loads_htmx = "htmx" in scripts
 
-    def add(self, id_: str, level: str, node: Node, message: str, fixi_line: str | None = None) -> None:
-        self.findings.append(Finding(id_, level, message, node.line, node.column, node.describe(), fixi_line, self.file))
+    def add(
+        self, id_: str, level: str, node: Node, message: str, fixi_line: str | None = None
+    ) -> None:
+        self.findings.append(
+            Finding(
+                id_, level, message, node.line, node.column, node.describe(), fixi_line, self.file
+            )
+        )
 
     def run(self) -> list[Finding]:
         referenced: dict[str, Node] = {}
@@ -267,7 +319,9 @@ class _Linter:
                 present = sorted(n for n in node.attrs if n in FX_CONTROL_ATTRIBUTES)
                 if present:
                     self.add(
-                        "dj_fixi.L110", "warning", node,
+                        "dj_fixi.L110",
+                        "warning",
+                        node,
                         f"{', '.join(present)} on an element with no fx-action; fixi only initialises elements "
                         "matching [fx-action], so this one does nothing.",
                         "fixi.js:81",
@@ -275,25 +329,37 @@ class _Linter:
         for id_, node in referenced.items():
             if len(self.ids.get(id_, [])) > 1:
                 self.add(
-                    "dj_fixi.L109", "error", self.ids[id_][1],
+                    "dj_fixi.L109",
+                    "error",
+                    self.ids[id_][1],
                     f'id="{id_}" appears {len(self.ids[id_])} times and fx-target="#{id_}" points at it; '
                     "fixi swaps into the first one only.",
                     "fixi.js:21",
                 )
         if self.full_document and self.is_fx:
-            root = next((n for n in self.nodes if n.tag == "html"), self.nodes[0] if self.nodes else None)
+            root = next(
+                (n for n in self.nodes if n.tag == "html"), self.nodes[0] if self.nodes else None
+            )
             if root is not None:
                 self.add(
-                    "dj_fixi.L111", "warning", root,
+                    "dj_fixi.L111",
+                    "warning",
+                    root,
                     "a full HTML document answered a Fixi request; fixi will swap the whole page into "
                     "the control's target. Render a fragment for Fixi requests (partial_template, render_fx).",
                 )
         return self.findings
 
     def htmx_attribute(self, node: Node, name: str) -> None:
-        level = "error" if (self.full_document and self.loads_fixi and not self.loads_htmx) else "warning"
+        level = (
+            "error"
+            if (self.full_document and self.loads_fixi and not self.loads_htmx)
+            else "warning"
+        )
         self.add(
-            "dj_fixi.L101", level, node,
+            "dj_fixi.L101",
+            level,
+            node,
             f"{name} is htmx; fixi reads only fx-action, fx-method, fx-target, fx-swap, fx-trigger and "
             f"fx-ignore, so it is ignored. {translate_htmx(name)}.",
             "fixi.js:19-22",
@@ -302,10 +368,14 @@ class _Linter:
     def fx_attribute(self, node: Node, name: str, value: str | None, has_action: bool) -> None:
         if name not in FX_ATTRIBUTES:
             if has_action and not any(name.startswith(real) for real in FX_ATTRIBUTES):
-                close = difflib.get_close_matches(name, sorted(FX_CONTROL_ATTRIBUTES), n=1, cutoff=0.75)
+                close = difflib.get_close_matches(
+                    name, sorted(FX_CONTROL_ATTRIBUTES), n=1, cutoff=0.75
+                )
                 if close:
                     self.add(
-                        "dj_fixi.L102", "warning", node,
+                        "dj_fixi.L102",
+                        "warning",
+                        node,
                         f"{name} is not a fixi attribute (did you mean {close[0]}?); fixi ignores it.",
                         "fixi.js:19-22",
                     )
@@ -317,21 +387,27 @@ class _Linter:
             if canonical is None:
                 if re.search(r"\s", value):
                     self.add(
-                        "dj_fixi.L104", "error", node,
+                        "dj_fixi.L104",
+                        "error",
+                        node,
                         f'fx-swap="{value}" carries modifiers, which are htmx; fixi takes one keyword, looks '
                         f'up target["{value}"], finds nothing, throws, and swaps nothing.',
                         "fixi.js:63-65",
                     )
                 elif value.lower() in _HTMX_ONLY_SWAPS:
                     self.add(
-                        "dj_fixi.L104", "warning", node,
+                        "dj_fixi.L104",
+                        "warning",
+                        node,
                         f'fx-swap="{value}" is an htmx swap style fixi does not have; fixi assigns '
                         f'target["{value}"] if that property exists and throws otherwise.',
                         "fixi.js:63-65",
                     )
             elif canonical != value:
                 self.add(
-                    "dj_fixi.L103", "error", node,
+                    "dj_fixi.L103",
+                    "error",
+                    node,
                     f'fx-swap="{value}" must be spelled {canonical}; fixi matches case, throws, and swaps nothing.',
                     "fixi.js:63-65",
                 )
@@ -340,7 +416,9 @@ class _Linter:
                 validate_trigger(value)
             except ValueError:
                 self.add(
-                    "dj_fixi.L105", "error", node,
+                    "dj_fixi.L105",
+                    "error",
+                    node,
                     f'fx-trigger="{value}" is handed to addEventListener verbatim, so it waits for an event '
                     "named exactly that. One event name, no modifiers.",
                     "fixi.js:74-75",
@@ -350,14 +428,18 @@ class _Linter:
                 validate_method(value)
             except ValueError:
                 self.add(
-                    "dj_fixi.L106", "error", node,
+                    "dj_fixi.L106",
+                    "error",
+                    node,
                     f'fx-method="{value}" is refused by fetch(); fixi swallows the TypeError and nothing happens.',
                     "fixi.js:51-53",
                 )
         elif name == "fx-action":
             if not value.strip():
                 self.add(
-                    "dj_fixi.L107", "error", node,
+                    "dj_fixi.L107",
+                    "error",
+                    node,
                     'fx-action="" is read as undefined; fixi fetches "./undefined". A misspelled template '
                     "variable renders as an empty string.",
                     "fixi.js:5",
@@ -368,7 +450,9 @@ class _Linter:
     def fx_target(self, node: Node, value: str) -> None:
         if _HTMX_EXTENDED.match(value):
             self.add(
-                "dj_fixi.L108", "error", node,
+                "dj_fixi.L108",
+                "error",
+                node,
                 f'fx-target="{value}" is an htmx extended selector, not CSS; querySelector throws on it '
                 "and the request never starts.",
                 "fixi.js:21",
@@ -377,7 +461,9 @@ class _Linter:
         m = _ID_TARGET.match(value)
         if m and m.group(1) not in self.ids:
             self.add(
-                "dj_fixi.L108", "error", node,
+                "dj_fixi.L108",
+                "error",
+                node,
                 f'fx-target="{value}" matches nothing on this page; fixi falls back to the element itself and '
                 "swaps the response into it.",
                 "fixi.js:21",
@@ -385,7 +471,9 @@ class _Linter:
         elif not m and _BARE_WORD.match(value) and value.lower() not in self.tags:
             hint = f' (did you mean "#{value}"?)' if value in self.ids else ""
             self.add(
-                "dj_fixi.L108", "error", node,
+                "dj_fixi.L108",
+                "error",
+                node,
                 f'fx-target="{value}" is a tag selector and no <{value}> is on this page{hint}; fixi falls back '
                 "to the element itself and swaps the response into it.",
                 "fixi.js:21",
@@ -551,7 +639,9 @@ def strip_template_syntax(source: str) -> str:
     return _TAG.sub(tag, source)
 
 
-def lint_template_source(source: str, file: str | None = None, ignore: Iterable[str] = ()) -> list[Finding]:
+def lint_template_source(
+    source: str, file: str | None = None, ignore: Iterable[str] = ()
+) -> list[Finding]:
     """
     Findings for one template's source, without rendering it.
 
@@ -559,4 +649,6 @@ def lint_template_source(source: str, file: str | None = None, ignore: Iterable[
     cannot know which ids the page will have. The test client lints rendered
     responses; this is for a person at the command line (``manage.py fixi_lint``).
     """
-    return lint_html(strip_template_syntax(source), full_document=False, is_fx=None, ignore=ignore, file=file)
+    return lint_html(
+        strip_template_syntax(source), full_document=False, is_fx=None, ignore=ignore, file=file
+    )

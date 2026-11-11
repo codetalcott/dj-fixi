@@ -71,4 +71,8 @@ def fs_templates(directory, files: dict) -> list:
 
 
 #: The two templates every "good" fixture view resolves against, as files.
-GOOD_FILES = {"good/list.html": PAGE, "good/list_partial.html": PARTIAL, "good/at_urlconf.html": PAGE}
+GOOD_FILES = {
+    "good/list.html": PAGE,
+    "good/list_partial.html": PARTIAL,
+    "good/at_urlconf.html": PAGE,
+}

@@ -101,18 +101,6 @@ def test_fixi_events_emits_static_script():
     assert "dj_fixi/fixi-events.js" in rendered
 
 
-def test_fixi_cdn_points_at_real_package():
-    """The deprecated CDN tag now points at the real the-fixi-project package."""
-    template = Template("{% load fixi_tags %}{% fixi_cdn %}")
-    rendered = template.render(Context({}))
-
-    assert "<script" in rendered
-    assert "the-fixi-project" in rendered
-
-
-# ------------------------------------------------------------- validation (0.4.0)
-
-
 def render_tag(tag, context=None):
     from django.template import Context, Template
 
@@ -131,7 +119,9 @@ def test_fx_attrs_rejects_a_trigger_with_htmx_modifiers():
 
 def test_fx_attrs_accepts_a_namespaced_trigger():
     """Colons are legitimate: fx:swapped is a real event name."""
-    assert 'fx-trigger="fx:swapped"' in render_tag("{% fx_attrs action='/t' trigger='fx:swapped' %}")
+    assert 'fx-trigger="fx:swapped"' in render_tag(
+        "{% fx_attrs action='/t' trigger='fx:swapped' %}"
+    )
 
 
 def test_fx_attrs_rejects_methods_fetch_refuses_and_keeps_the_rest():

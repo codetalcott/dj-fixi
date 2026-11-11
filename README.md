@@ -1,17 +1,16 @@
 # dj-fixi
 
-Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi) - a lightweight HTMX alternative for server-side rendering with hypermedia.
+Django integration for [Fixi.js](https://github.com/bigskysoftware/fixi), a lightweight HTMX alternative for server-side rendering with hypermedia.
 
 ## Features
 
-- 🎯 **Automatic Fixi Detection** - Middleware detects `FX-Request` headers
-- 🔄 **Smart Template Selection** - Serve fragments for Fixi requests, full pages otherwise
-- 🏗️ **View Mixins** - Drop-in enhancements for class-based views (`FxResponseMixin`, `ContextPersistenceMixin`, `OptimizedQueryMixin`)
-- 🎨 **Template Tags** - Helpers for Fixi attributes, CSRF, and loading the (vendored) Fixi.js
-- 📝 **Form Helpers** - `FxForm`/`FxModelForm` render Django forms with Fixi attributes
-- 🧪 **Testing Utilities** - A test client that lints every response for what fixi.js would silently ignore, and refuses to guess about redirects
-- 🔎 **Lint** - `dj_fixi.lint` knows the six attributes fixi reads and the htmx ones it does not (see [Lint](#lint))
-- 🚨 **System Checks** - `manage.py check` catches the misconfigurations that would otherwise fail silently (see [System checks](#system-checks))
+- **Fragment or page from one view.** `FxView` and `render_fx` serve a fragment to Fixi requests and the full page to everything else.
+- **Form and delete views that answer Fixi.** `FxResponseMixin` makes Django's generic create, update and delete views respond with fragments.
+- **Template tags.** `{% fx_attrs %}` writes Fixi attributes, `{% fx_csrf_token %}` the token, and `{% fixi_js %}` loads the vendored `fixi.js`.
+- **Form helpers.** `FxForm` and `FxModelForm` render Django forms with Fixi attributes.
+- **A test client that lints.** `FxTestClient` checks every response for what fixi.js would silently ignore, and refuses to guess about redirects.
+- **Lint.** `dj_fixi.lint` knows the six attributes fixi reads and the htmx ones it does not (see [Lint](#lint)).
+- **System checks.** `manage.py check` catches the misconfigurations that would otherwise fail silently (see [System checks](#system-checks)).
 
 ## Installation
 
@@ -46,7 +45,7 @@ directly, so fragment selection works without it. Add it anyway if you want
 `request.is_fx` in your own view code, or `Vary: FX-Request` on responses dj-fixi
 does not build itself.
 
-### 2. Use FxView or mixins
+### 2. Write a view
 
 ```python
 # views.py
@@ -54,11 +53,12 @@ from django.views.generic import ListView
 
 from dj_fixi.views import FxView
 
+
 class ProductListView(FxView, ListView):
     model = Product
-    context_object_name = 'products'
-    template_name = 'products/list.html'
-    partial_template = 'products/list_partial.html'
+    context_object_name = "products"
+    template_name = "products/list.html"
+    partial_template = "products/list_partial.html"
 ```
 
 Two things the checks will hold you to. **dj-fixi classes come first** in the base
@@ -93,13 +93,7 @@ with neither answers `405` forever.
 {% endfor %}
 ```
 
-## Architecture
-
-Adapted from two of the author's unpublished projects: `django-mod`, for the
-HypermediaView and middleware patterns, and `python-modules/crud`, for the CRUD
-mixins and renderers.
-
-### Key Differences: HTMX vs Fixi
+## Fixi is not HTMX
 
 **Fixi** is deliberately minimal, and this matters for what the server can assume:
 - Request header: it sends **only** `FX-Request: true` (plus anything you add via
@@ -147,8 +141,8 @@ the surface a test sees:
 ```python
 from dj_fixi.testing import FxTestClient
 
-client = FxTestClient()          # every text/html response is linted; errors raise
-client.fx_get("/products/")     # a redirect here raises too: pass follow=True or False
+client = FxTestClient()  # every text/html response is linted; errors raise
+client.fx_get("/products/")  # a redirect here raises too: pass follow=True or False
 ```
 
 Each finding names the element, the line, and the line of `fixi.js` that explains it, and
@@ -166,7 +160,7 @@ remains lives in your project's settings, URLconf, or filesystem, where the
 library cannot fix it — so `manage.py check` reports it at startup instead.
 
 | ID | Level | Fires when |
-|---|---|---|
+| --- | --- | --- |
 | `dj_fixi.E101` | Error | A Django class earlier in the MRO shadows a dj-fixi hook, e.g. `class V(ListView, FxView)` |
 | `dj_fixi.W102` | Warning | Same, but your own class is the one that does not call `super()` |
 | `dj_fixi.E103` | Error | A routed `FxView` subclass defines no HTTP handler, so it answers `405` forever |
@@ -195,6 +189,7 @@ this one test so your suite catches these too:
 
 ```python
 from dj_fixi.testing import assert_no_fixi_check_issues
+
 
 def test_dj_fixi_is_configured_correctly():
     assert_no_fixi_check_issues()
@@ -229,9 +224,10 @@ That package is not published yet.
 
 ## Documentation
 
-- [llms.txt](llms.txt) - Complete API reference in one file, written for coding
+- [llms.txt](llms.txt): complete API reference in one file, written for coding
   agents. Point your agent at it and it should not need to read the source.
-- [CLAUDE.md](CLAUDE.md) - Development guide
+- [CHANGELOG.md](CHANGELOG.md): what changed in each release, and why
+- [CLAUDE.md](CLAUDE.md): development guide
 
 ## License
 

@@ -23,19 +23,17 @@ def rf():
 def test_middleware_detects_fx_request(middleware, rf):
     """Test that middleware detects Fixi requests"""
     request = rf.get("/", HTTP_FX_REQUEST="true")
-    response = middleware(request)
+    middleware(request)
 
     assert request.is_fx is True
-    assert response["X-FX-Response"] == "true"
 
 
 def test_middleware_detects_non_fx_request(middleware, rf):
     """Test that middleware detects regular requests"""
     request = rf.get("/")
-    response = middleware(request)
+    middleware(request)
 
     assert request.is_fx is False
-    assert "X-FX-Response" not in response
 
 
 def test_middleware_does_not_set_target_swap_trigger(middleware, rf):
@@ -59,25 +57,6 @@ def test_middleware_does_not_set_target_swap_trigger(middleware, rf):
     assert not hasattr(request, "fx_trigger")
 
 
-@override_settings(DEBUG=True)
-def test_middleware_adds_execution_time_header_in_debug(middleware, rf):
-    """Test that middleware records per-request timing when DEBUG is on"""
-    request = rf.get("/")
-    response = middleware(request)
-
-    assert "X-Execution-Time" in response
-    assert response["X-Execution-Time"].endswith("ms")
-
-
-@override_settings(DEBUG=False)
-def test_middleware_omits_execution_time_when_not_debug(middleware, rf):
-    """Timing header is suppressed outside DEBUG to avoid leaking timing"""
-    request = rf.get("/")
-    response = middleware(request)
-
-    assert "X-Execution-Time" not in response
-
-
 def test_middleware_no_longer_sets_mcp_attributes(middleware, rf):
     """The removed MCP cargo-cult should leave no trace on requests/responses."""
     request = rf.get("/", HTTP_X_MCP_SESSION="test-123")
@@ -96,7 +75,10 @@ LOCMEM = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "OPTIONS": {
             "loaders": [
-                ("django.template.loaders.locmem.Loader", {"m/page.html": "PAGE", "m/page_partial.html": "PART"})
+                (
+                    "django.template.loaders.locmem.Loader",
+                    {"m/page.html": "PAGE", "m/page_partial.html": "PART"},
+                )
             ]
         },
     }

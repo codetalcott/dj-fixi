@@ -15,7 +15,6 @@ strictness lives.
 """
 
 import logging
-import time
 
 from django.conf import settings
 
@@ -32,18 +31,14 @@ _METHOD_PRESERVED = ("DELETE", "PUT", "PATCH")
 
 class FxMiddleware:
     """
-    Detects Fixi.js requests and adds fixi-related attributes to request object.
-
-    Also records per-request timing via the X-Execution-Time response header.
+    Sets ``request.is_fx``, adds ``Vary: FX-Request`` to every response, and
+    under ``DEBUG`` logs what fixi would otherwise do silently.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # Add timing
-        request._fx_start_time = time.time()
-
         # Detect Fixi request. Fixi.js sends exactly one custom request header
         # (``FX-Request: true``); it does not send target/swap/trigger headers
         # (those are client-side concerns), so there is nothing else to extract.
@@ -52,16 +47,8 @@ class FxMiddleware:
         # Process request
         response = self.get_response(request)
 
-        # Add execution time (debug only, to avoid leaking timing in production)
-        if settings.DEBUG:
-            execution_time = (time.time() - request._fx_start_time) * 1000
-            response["X-Execution-Time"] = f"{execution_time:.2f}ms"
-            if request.is_fx:
-                self.observe(request, response)
-
-        # Add Fixi header to response for debugging
-        if request.is_fx:
-            response["X-FX-Response"] = "true"
+        if settings.DEBUG and request.is_fx:
+            self.observe(request, response)
 
         # Unconditional: a *full-page* response from an Fx-aware URL must also
         # declare that it varies, or a shared cache will serve it into a swap

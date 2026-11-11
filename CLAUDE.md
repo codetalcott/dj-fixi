@@ -1,157 +1,54 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with the dj-fixi repository.
+Guidance for Claude Code when working in the dj-fixi repository.
 
-## Project Overview
+## What this is
 
-**dj-fixi** is a Django integration library for Fixi.js - a lightweight HTMX alternative for server-side rendering with hypermedia.
+**dj-fixi** is the Django adapter for [Fixi.js](https://github.com/bigskysoftware/fixi):
+request detection, fragment-or-page template selection, form and delete views that
+answer Fixi requests, template tags, and the checks and lint that make Fixi's silent
+failures loud. It deliberately stops there. Tables live in `dj-fixi-tables`; filtering,
+sorting and query optimization belong to Django and django-filter, and were removed
+in 0.5.0.
 
-This project was created by adapting code from:
-- `django-mod` (unpublished) - HypermediaView and middleware patterns
-- `python-modules/crud` (unpublished) - CRUD mixins and table renderers
+The user-facing documentation is [README.md](README.md) and [llms.txt](llms.txt);
+[CHANGELOG.md](CHANGELOG.md) records why each thing changed. Read the changelog
+before reintroducing anything that looks missing.
 
-## Architecture
+## The one fact about Fixi
 
-### Key Components
+Fixi sends exactly one request header, `FX-Request: true`, and reads **no** response
+headers. Everything else follows from that:
 
-1. **Request detection** ([dj_fixi/request.py](dj_fixi/request.py))
-   - `is_fx(request)` reads `FX-Request: true`, honoring `request.is_fx` when set
-   - `vary_on_fx(response)` adds the `Vary` header every fragment/page URL needs
-   - Detection deliberately does **not** default to False when the middleware is
-     absent: that default was the root cause of seven silent failure modes
+- There is no target, swap or trigger on the wire. Nothing like `request.htmx.target`
+  exists or can exist.
+- `FX-Trigger` on a response is inert unless the page loads `{% fixi_events %}`
+  (or an equivalent moxi.js handler).
+- The default swap is `outerHTML`, not `innerHTML`.
+- `fetch()` follows redirects before fixi sees them, so a redirect answered to a
+  Fixi request swaps the redirect target's body into the control's target.
 
-2. **Middleware** ([dj_fixi/middleware.py](dj_fixi/middleware.py))
-   - Optional since 0.3.0. Sets `request.is_fx` and the `Vary` header
-   - Fixi sends no target/swap/trigger headers, so `is_fx` is the only signal
+`dj_fixi/static/dj_fixi/fixi.js` is the vendored source and the authority. When a
+claim about Fixi matters, read it there (it is 90 lines).
 
-3. **Views** ([dj_fixi/views.py](dj_fixi/views.py))
-   - `FxView`: Base view with automatic template selection
-   - `FxTemplateView`: Simple template view variant
+## Layout
 
-4. **Mixins** ([dj_fixi/mixins.py](dj_fixi/mixins.py))
-   - `FxResponseMixin`: Fragment template handling, form validation
-   - `ContextPersistenceMixin`: URL state preservation
-   - `OptimizedQueryMixin`: Query optimization
-
-5. **Template Tags** ([dj_fixi/templatetags/fixi_tags.py](dj_fixi/templatetags/fixi_tags.py))
-   - `{% fx_attrs %}`: Generate Fixi attributes
-   - `{% fx_csrf_token %}`: CSRF tokens
-   - `{% fixi_cdn %}`: Include Fixi.js
-
-6. **Shortcuts** ([dj_fixi/shortcuts.py](dj_fixi/shortcuts.py))
-   - `render_fx()`: Automatic template selection for FBVs
-
-7. **System checks** ([dj_fixi/checks/](dj_fixi/checks/))
-   - Registered by [dj_fixi/apps.py](dj_fixi/apps.py); IDs `dj_fixi.E101`…`W302`
-   - Built on [dj_fixi/urlconf.py](dj_fixi/urlconf.py), a defensive URLconf walk
-     that is public API (dj-fixi-tables reuses it) and never raises
-
-8. **Vocabulary and lint** ([dj_fixi/attrs.py](dj_fixi/attrs.py), [dj_fixi/lint.py](dj_fixi/lint.py))
-   - `attrs` is the one source of truth for what fixi.js accepts; the tag,
-     `FxForm` and the lint all import it, and `tests/test_lint_vocabulary.py`
-     pins it against the vendored `fixi.js`
-   - `lint` runs on every response `FxTestClient` fetches (raises), in
-     `FxMiddleware` under DEBUG (logs), and over template source with
-     `manage.py fixi_lint`. Every rule was written against
-     `tests/test_lint_no_false_positives.py` first; custom `fx-*` names are
-     never flagged
-
-## Fixi.js vs HTMX
-
-### Fixi.js
-- Request header: `FX-Request: true`
-- Attributes: `fx-action`, `fx-method`, `fx-target`, `fx-swap`, `fx-trigger`
-- Events: `fx:init`, `fx:before`, `fx:after`, `fx:swapped`
-- Simpler, smaller (minimal feature set)
-
-### HTMX
-- Request header: `HX-Request: true`
-- Attributes: `hx-get`, `hx-post`, `hx-target`, `hx-swap`
-- More features (history, indicators, OOB swaps, etc.)
-
-## Development
-
-### Running Tests
-```bash
-pytest
-```
-
-Note that pytest does **not** run Django system checks (pytest-django has no
-support for them). `tests/test_check_helper.py` covers dj-fixi's own, and
-`dj_fixi.testing.assert_no_fixi_check_issues()` is what downstream projects use.
-Run `manage.py check` in `examples/demo_project` to exercise them for real.
-
-### Gotcha: stale bytecode when A/B testing a line
-
-Toggling a line to compare before/after can silently keep running the old code.
-CPython invalidates a `.pyc` on mtime **and size**, both at one-second
-granularity — so an edit that swaps two names of equal length, applied within the
-same second, looks unchanged. Reordering base classes is exactly this shape. Four
-separate investigations of the same bug hit it. Clear caches before measuring:
-
-```bash
-find . -name __pycache__ -type d -exec rm -rf {} +
-```
-
-### Running Demo
-```bash
-cd examples/demo_project
-python manage.py migrate
-python manage.py runserver
-```
-
-### Code Style
-- Uses Ruff for linting and formatting
-- Type hints required for public APIs
-- Docstrings for all public functions/classes
-
-## Migration from HTMX
-
-If adapting HTMX code to Fixi:
-
-1. Change request detection:
-   ```python
-   # Before (HTMX)
-   if request.htmx:
-
-   # After (Fixi)
-   from dj_fixi import is_fx
-   if is_fx(request):
-   ```
-
-2. Drop the request-header reads entirely:
-   ```python
-   # Before (HTMX)
-   target = request.htmx.target
-   swap = request.htmx.swap
-
-   # After (Fixi): there is no equivalent.
-   ```
-   Fixi sends only `FX-Request: true`. Target and swap are client-side concerns
-   it never puts on the wire, so there is nothing to read. (`request.fx_target`,
-   `fx_swap` and `fx_trigger` existed briefly before 0.2.0 and were always empty.)
-
-3. Change attributes in templates:
-   ```django
-   {# Before (HTMX) #}
-   <button hx-get="/api/data" hx-target="#result">Load</button>
-
-   {# After (Fixi) #}
-   <button {% fx_attrs action="/api/data" target="#result" %}>Load</button>
-   ```
-
-4. Change headers in responses — and load the shim:
-   ```python
-   # Before (HTMX)
-   response['HX-Trigger'] = 'myEvent'
-
-   # After (Fixi)
-   response['FX-Trigger'] = 'myEvent'
-   ```
-   Fixi core reads **no** response headers, so `FX-Trigger` is inert on its own.
-   Add `{% fixi_events %}` after `{% fixi_js %}`, or write the equivalent moxi.js
-   `on-fx:swapped` handler. Without one of those, this header does nothing. The
-   shim fires after the swap, on the requesting element or `<body>`.
+| Path | What it holds |
+| --- | --- |
+| [dj_fixi/request.py](dj_fixi/request.py) | `is_fx(request)`, `vary_on_fx(response)`, `redirect_note` |
+| [dj_fixi/middleware.py](dj_fixi/middleware.py) | `FxMiddleware`: optional. Sets `request.is_fx` and `Vary`; under `DEBUG` logs lint findings, risky redirects, and the template used (`X-FX-Template`). Never raises |
+| [dj_fixi/views.py](dj_fixi/views.py) | `FxView` (no HTTP handlers of its own), `FxTemplateView` |
+| [dj_fixi/mixins.py](dj_fixi/mixins.py) | `FxResponseMixin` for Django's form and delete views |
+| [dj_fixi/shortcuts.py](dj_fixi/shortcuts.py) | `render_fx()` for function-based views |
+| [dj_fixi/forms.py](dj_fixi/forms.py) | `FxForm`, `InlineEditForm`, `FxModelForm` |
+| [dj_fixi/templatetags/fixi_tags.py](dj_fixi/templatetags/fixi_tags.py) | `fx_attrs`, `fx_csrf_token`, `fixi_js`, `fixi_events` |
+| [dj_fixi/attrs.py](dj_fixi/attrs.py) | The one source of truth for what fixi.js accepts. The tag, `FxForm` and the lint all import it; `tests/test_lint_vocabulary.py` pins it against the vendored `fixi.js` |
+| [dj_fixi/lint.py](dj_fixi/lint.py) | HTML lint. Runs in `FxTestClient` (raises), in `FxMiddleware` under `DEBUG` (logs), and over template source via `manage.py fixi_lint` |
+| [dj_fixi/checks/](dj_fixi/checks/) | System checks `dj_fixi.E101`…`W302`, registered by [dj_fixi/apps.py](dj_fixi/apps.py) |
+| [dj_fixi/urlconf.py](dj_fixi/urlconf.py) | Defensive URLconf walk the checks are built on. Public API; never raises |
+| [dj_fixi/testing.py](dj_fixi/testing.py) | `FxTestClient`, `assert_no_fixi_check_issues()`, `fixi_check_messages()` |
+| [dj_fixi/static/dj_fixi/](dj_fixi/static/dj_fixi/) | Vendored `fixi.js` and the `fixi-events.js` shim |
+| [examples/demo_project/](examples/demo_project/) | A working app that exercises all of it |
 
 ## Design principle
 
@@ -168,15 +65,79 @@ A check is only correct when the defect lives in the *project's* settings,
 URLconf, or filesystem. A check that says "dj-fixi ignores this attribute" ships
 a bug plus a note about the bug — fix the attribute instead.
 
-## Important Notes
+## Rules
 
-- `dj_fixi` must be in `INSTALLED_APPS`; `FxMiddleware` is optional since 0.3.0
-- Read detection with `dj_fixi.is_fx(request)`, never `getattr(request, "is_fx", False)`
-- dj-fixi classes go **first** in a base-class list (`FxView, ListView`)
-- Template tags require `{% load fixi_tags %}`
-- Fixi.js must be included in base templates
-- Use `render_fx()` for simple cases, `FxView` for complex ones
-- New checks need a case in `tests/test_checks_no_false_positives.py` first
-- New lint rules need a case in `tests/test_lint_no_false_positives.py` first
-- Write the partial's name down (`partial_template`); nothing is derived from `template_name`
-- Test with `FxTestClient`: it lints responses and refuses to guess about redirects
+- Read detection with `dj_fixi.is_fx(request)`, never `getattr(request, "is_fx", False)`.
+  That default turned a missing middleware into a permanent, silent "not a Fixi
+  request" and was the root cause of seven failure modes.
+- dj-fixi classes go **first** in a base-class list (`FxView, ListView`). Django's
+  generic mixins do not call `super()` in the hooks dj-fixi overrides.
+- A fragment exists only when a view names it in `partial_template`. Nothing is
+  derived from `template_name`.
+- Any response that differs by `FX-Request` must go through `vary_on_fx`.
+- A new check needs a case in `tests/test_checks_no_false_positives.py` first; a new
+  lint rule needs one in `tests/test_lint_no_false_positives.py` first. An Error
+  stops `runserver`, so a false positive blocks someone rather than annoying them.
+- Custom `fx-*` attribute names are never flagged by the lint.
+- Type hints and docstrings on public APIs.
+
+## Keeping the docs honest
+
+`tests/test_llms_txt.py` pins [llms.txt](llms.txt) to the code: check IDs, swap
+values, exported names and template tags must all match. Adding, renaming or
+removing public API means editing `llms.txt`, the README and the changelog in the
+same change; the test will fail on the first of those if you forget.
+
+## Development
+
+```bash
+uv venv && uv pip install -e ".[dev]" && source .venv/bin/activate
+pytest
+ruff check . && ruff format --check .     # the formatter also covers code blocks in the .md files
+(cd examples/demo_project && python manage.py check --fail-level WARNING)
+```
+
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same four, with
+ruff pinned to one version so a formatter release cannot turn main red, on
+Python 3.10 / Django 4.2, 3.12 / 5.2 and 3.13 / 6.0. Supporting 4.2 means no
+`{% querystring %}` and no template partials in anything the package itself renders.
+
+pytest does **not** run Django system checks (pytest-django has no support for
+them). `tests/test_check_helper.py` covers dj-fixi's own, and
+`assert_no_fixi_check_issues()` is what downstream projects use; `manage.py check`
+in the demo exercises them for real.
+
+`tests/test_browser.py` drives the events shim in Chromium and is skipped unless
+Playwright is installed (`pip install playwright && playwright install chromium`).
+
+To run the demo: `python manage.py migrate && python manage.py runserver` in
+`examples/demo_project`.
+
+### Gotcha: stale bytecode when A/B testing a line
+
+Toggling a line to compare before/after can silently keep running the old code.
+CPython invalidates a `.pyc` on mtime **and size**, both at one-second
+granularity — so an edit that swaps two names of equal length, applied within the
+same second, looks unchanged. Reordering base classes is exactly this shape. Four
+separate investigations of the same bug hit it. Clear caches before measuring:
+
+```bash
+find . -name __pycache__ -type d -exec rm -rf {} +
+```
+
+## Downstream
+
+Two sibling repositories depend on this one. Check them when changing public API:
+
+- **dj-fixi-tables** (`../dj-fixi-tables`) imports `dj_fixi.request` and renders
+  `{% fixi_js %}` and `{% fixi_events %}` in its default page template. Removing
+  `{% fixi_cdn %}` in 0.5.0 broke it until it was updated.
+- **dj-hx** (`../dj-hx`) vendors `dj_fixi/urlconf.py` verbatim under its own
+  docstring. After changing that file, run `tools/sync_shared.py` there.
+
+## Releasing
+
+Bump the version in `pyproject.toml`, `dj_fixi/__init__.py` and the first lines of
+`llms.txt`; move the changelog's Unreleased section under the new version with a
+date; tag `vX.Y.Z` on main. The package is not on PyPI; the README installs it from
+GitHub.

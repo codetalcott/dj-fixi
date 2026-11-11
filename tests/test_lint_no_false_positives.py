@@ -37,9 +37,14 @@ def test_everything_fx_attrs_can_emit():
 
 
 def test_everything_fxform_and_inline_edit_form_emit():
-    form_html = FxForm(form=SimpleForm(), action="/save/", target="#row-1", swap="innerhtml").render()
+    form_html = FxForm(
+        form=SimpleForm(), action="/save/", target="#row-1", swap="innerhtml"
+    ).render()
     inline = InlineEditForm(form=SimpleForm(), action="/items/5/", row_id="row-5").render()
-    assert lint_html(page(f'<div id="row-1"></div><table><tbody>{inline}</tbody></table>{form_html}')) == []
+    assert (
+        lint_html(page(f'<div id="row-1"></div><table><tbody>{inline}</tbody></table>{form_html}'))
+        == []
+    )
 
 
 def test_the_demo_apps_shapes():
@@ -90,10 +95,14 @@ def test_fx_ignore_and_custom_attributes_are_the_projects_own():
 
 
 def test_a_project_that_mixes_htmx_and_fixi_on_purpose_gets_no_errors():
-    both = '<script src="/static/dj_fixi/fixi.js"></script><script src="/static/htmx.min.js"></script>'
+    both = (
+        '<script src="/static/dj_fixi/fixi.js"></script><script src="/static/htmx.min.js"></script>'
+    )
     body = '<button hx-get="/h/" hx-target="#r">htmx</button><button fx-action="/f/">fixi</button><div id="r"></div>'
     assert [f for f in lint_html(page(body, both)) if f.level == "error"] == []
-    assert [f for f in lint_html('<button hx-get="/h/">fragment</button>') if f.level == "error"] == []
+    assert [
+        f for f in lint_html('<button hx-get="/h/">fragment</button>') if f.level == "error"
+    ] == []
 
 
 def test_ids_targets_and_pages_that_are_fine():
@@ -109,5 +118,10 @@ def test_ids_targets_and_pages_that_are_fine():
 
 
 def test_a_fragment_referencing_ids_that_live_in_the_page():
-    assert lint_html('<tr id="row-1"><td><a fx-action="/rows/1/" fx-target="#row-1">edit</a></td></tr>') == []
+    assert (
+        lint_html(
+            '<tr id="row-1"><td><a fx-action="/rows/1/" fx-target="#row-1">edit</a></td></tr>'
+        )
+        == []
+    )
     assert lint_html('<a fx-action="/x/" fx-target="#something-on-the-page">x</a>') == []
