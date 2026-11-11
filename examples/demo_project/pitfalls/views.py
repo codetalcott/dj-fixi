@@ -8,10 +8,11 @@ it; each sits next to the dj-fixi view that replaces it.
 import uuid
 from collections import Counter
 
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.template import engines
 from django.urls import reverse, reverse_lazy
+from django.utils.html import format_html
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView
@@ -36,6 +37,7 @@ def snippet_context(request, token: str) -> dict:
     return {
         "token": token,
         "details_url": reverse("pitfalls:details"),
+        "echo_url": reverse("pitfalls:echo"),
         "note_naive_url": reverse("pitfalls:note_naive"),
         "note_fixed_url": reverse("pitfalls:note_fixed"),
         "form": NoteCreate().get_form_class()(),
@@ -101,19 +103,34 @@ class NoteCreate(FxResponseMixin, CreateView):
         return super().get_context_data(action=self.request.path, **kwargs)
 
 
-# --- FX-Trigger ---------------------------------------------------------
+# --- what one script tag changes (FX-Trigger, CSRF) -------------------------
 
 
 @xframe_options_sameorigin
-def events_frame(request):
-    """A tiny page with, or without, the events shim. Shown in an iframe."""
-    return render(request, "pitfalls/events_frame.html", {"shim": request.GET.get("shim") == "1"})
+def frame(request, kind):
+    """
+    A tiny page shown in an iframe, loading fixi.js alone or {% fixi_scripts %}.
+
+    The pitfalls page itself loads everything, so the "before" of anything
+    the scripts tag fixes has to live in a page that does not.
+    """
+    if kind not in ("events", "csrf"):
+        raise Http404
+    context = {"kind": kind, "full": request.GET.get("scripts") == "full"}
+    return render(request, "pitfalls/frame.html", context)
 
 
 def ping(request):
     response = HttpResponse("The server answered, with FX-Trigger: pinged.")
     response["FX-Trigger"] = "pinged"
     return response
+
+
+# --- trigger modifiers --------------------------------------------------
+
+
+def echo(request):
+    return HttpResponse(format_html("You searched for: {}", request.GET.get("q", "")))
 
 
 # --- confirm ------------------------------------------------------------

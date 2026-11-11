@@ -1,7 +1,7 @@
 # dj-fixi
 
 Django integration for Fixi.js. Server renders HTML; Fixi swaps it into the DOM.
-Version 0.5.3. Requires Django >= 4.2, Python >= 3.10. MIT.
+Version 0.6.0. Requires Django >= 4.2, Python >= 3.10. MIT.
 
 Read this before writing dj-fixi code. It is complete; you should not need to
 read the source.
@@ -73,11 +73,15 @@ and `Vary: FX-Request` on responses dj-fixi does not build.
   equivalent of `HX-Target`, `HX-Trigger` or `HX-Prompt` on the request. Target
   and swap are client-side concerns. `request.fx_target` does not exist.
 - **Fixi core reads no response headers.** The `FX-Trigger` header dj-fixi sets
-  on form success/error does nothing unless you also load the shim:
-  `{% fixi_events %}` after `{% fixi_js %}`, or an equivalent moxi.js
-  `on-fx:swapped` handler.
+  on form success/error does nothing unless you also load the shim. Put
+  `{% fixi_scripts %}` in the page head and it is loaded (or write an
+  equivalent moxi.js `on-fx:swapped` handler).
 - Fixi's default swap is `outerHTML`, not HTMX's `innerHTML`.
 - Fixi submits FormData (form-encoded), never JSON.
+- `fx-trigger` is ONE event name. No `delay:`, no `changed`, no commas. For
+  search as you type, add `ext-fx-debounce="250"` (see Extension attributes).
+- There is no `hx-confirm` and `onclick="return confirm()"` does not work. Use
+  `ext-fx-confirm="..."`.
 - There is no history, no indicators, no out-of-band swaps. Use HTMX with
   django-htmx if you need those.
 
@@ -144,7 +148,8 @@ came from in an `X-FX-Template` response header.
 ### dj_fixi.forms
 
     FxForm(form, action, method="POST", target=None, swap="outerHTML",
-           trigger="submit", css_class="fx-form", cancel_action=None, request=None)
+           trigger="submit", css_class="fx-form", cancel_action=None, request=None,
+           confirm=None)
     InlineEditForm(form, action, row_id, cancel_action=None)
     FxModelForm            # .as_fx_form(...) / .as_fx_inline(...)
 
@@ -153,10 +158,13 @@ must supply the token yourself, or the POST is rejected.
 
 ### Template tags — `{% load fixi_tags %}`
 
-    {% fx_attrs action="/x/" method="POST" target="#r" swap="innerHTML" trigger="click" %}
-    {% fx_csrf_token %}     # works with no context-processor configuration
-    {% fixi_js %}           # the vendored fixi.js (needs staticfiles)
-    {% fixi_events %}       # the FX-Trigger -> CustomEvent shim; load AFTER fixi_js
+    {% fixi_scripts %}      # USE THIS: fixi.js + events shim + extensions, in order (needs staticfiles)
+    {% fx_attrs action="/x/" method="POST" target="#r" swap="innerHTML" trigger="click"
+                confirm="Sure?" debounce=250 %}
+    {% fx_csrf_token %}     # hidden input, for forms that must work without JavaScript
+    {% fixi_js %}           # the three parts of fixi_scripts, if you need them separately:
+    {% fixi_events %}       #   the FX-Trigger -> CustomEvent shim; load AFTER fixi_js
+    {% fixi_ext %}          #   ext-fx-confirm, ext-fx-debounce, automatic CSRF header; AFTER fixi_js
 
 `fx_attrs` omits Fixi's own defaults (GET, `click`, `outerHTML`). Valid swap
 values: innerHTML, outerHTML, textContent, innerText, beforebegin, afterbegin,
@@ -167,11 +175,38 @@ and the page silently does not change. Since 0.4.0 the tag also raises on a
 a `method` fetch() refuses, and an empty `action` (fixi fetches `./undefined`;
 the usual cause is a misspelled template variable). `FxForm` validates the same.
 
-Unsafe requests need CSRF. Attach it once per page:
+### Extension attributes (need `{% fixi_scripts %}`)
 
-    document.addEventListener("fx:config", (e) => {
-        e.detail.cfg.headers["X-CSRFToken"] = csrftoken
-    })
+There are two, and there will not be many more. Both follow fixi's own
+`ext-fx-` convention and are implemented by `ext-fixi.js`.
+
+    <button fx-action="/items/7/" fx-method="DELETE" ext-fx-confirm="Delete this item?">Delete</button>
+        # asks first; Cancel sends nothing. NEVER onclick="return confirm(...)":
+        # fixi ignores it and sends the request anyway (dj_fixi.L112).
+
+    <input type="search" name="q" fx-action="/items/" fx-trigger="input"
+           fx-target="#results" fx-swap="innerHTML" ext-fx-debounce="250">
+        # search as you type: waits 250 ms after the last keystroke, and a newer
+        # request replaces an unanswered older one. The value is whole
+        # milliseconds, nothing else. fx-trigger takes ONE event name; there is
+        # no "delay:" modifier (dj_fixi.L105). Not on click or submit.
+
+`{% fx_attrs ... confirm="..." debounce=250 %}` and `FxForm(confirm="...")` emit
+them, validated. Without `ext-fixi.js` on the page they do nothing, which for a
+confirmation means the request is sent without asking: L115 and W303 catch that.
+
+Unsafe requests need CSRF. `{% fixi_scripts %}` handles it: every non-GET,
+same-origin fixi request gets Django's token in the `X-CSRFToken` header (the
+name follows `CSRF_HEADER_NAME`), with nothing to write. `{% fx_csrf_token %}`
+inside a form is only needed if the form must also work without JavaScript.
+
+To load content when an element arrives, use fixi's own event, no extension:
+
+    <div fx-action="/slow-part/" fx-trigger="fx:inited">Loading…</div>
+
+Everything else htmx has (history, boosting, out-of-band swaps, inheritance,
+polling, response headers that retarget) dj-fixi does not have and will not
+grow. If you need those, use htmx with django-htmx.
 
 ### dj_fixi.testing
 
@@ -206,9 +241,12 @@ fixi cannot act on; warnings are things it acts on differently than you meant.
     dj_fixi.L107  fx-action=""; fixi fetches ./undefined
     dj_fixi.L108  fx-target that matches nothing on the page; fixi swaps into the element itself
     dj_fixi.L109  an id an fx-target points at appears twice; fixi takes the first
-    dj_fixi.L110  fx-method/target/swap/trigger on an element without fx-action; never initialised
+    dj_fixi.L110  fx-method/target/swap/trigger or ext-fx-* on an element without fx-action; never initialised
     dj_fixi.L111  a full HTML document answered a Fixi request
     dj_fixi.L112  inline confirm() on the event fixi listens for; Cancel still sends the request
+    dj_fixi.L113  ext-fx-* attribute that looks like a typo of ext-fx-confirm/ext-fx-debounce
+    dj_fixi.L114  ext-fx-confirm with no message, or ext-fx-debounce that is not whole milliseconds / is on a click or submit
+    dj_fixi.L115  ext-fx-* on a full page that loads fixi.js but not ext-fixi.js; the attribute does nothing
 
     python manage.py fixi_lint [paths...] [--warnings-as-errors]
     # the same rules over template source, without rendering; every project
@@ -284,6 +322,7 @@ fixed.
     dj_fixi.W203  A project template uses htmx attributes, which fixi ignores
     dj_fixi.E301  staticfiles installed but fixi.js is unfindable
     dj_fixi.W302  django.contrib.staticfiles is not installed
+    dj_fixi.W303  Templates use ext-fx-confirm/ext-fx-debounce but nothing loads ext-fixi.js
 
 Silence with `SILENCED_SYSTEM_CHECKS = ["dj_fixi.W202"]`.
 

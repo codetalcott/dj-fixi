@@ -18,17 +18,16 @@
         .out { display: block; margin-top: .5rem; max-height: 14rem; overflow: auto; }
         div.out:not(:empty) { border: 1px dashed #8888; padding: .5rem; }
         pre { font-size: .8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
-        iframe { width: 100%; height: 9rem; border: 1px dashed #8888; }
+        iframe { width: 100%; height: 11rem; border: 1px dashed #8888; }
         .caught { font-size: .9rem; }
     </style>
-    {% fixi_js %}
-    {% fixi_events %}
+    {% fixi_scripts %}
 </head>
 <body>
     <nav><a href="{% url 'product_list' %}">Products</a> · <strong>Pitfalls</strong></nav>
     <h1>Pitfalls</h1>
     <p>
-        Seven mistakes that are easy to make with Fixi and Django. Each is live, twice: the
+        Eight mistakes that are easy to make with Fixi and Django. Each is live, twice: the
         naive version on the left really is broken, and the version on the right is what
         dj-fixi has you write instead. Try both.
     </p>
@@ -65,13 +64,6 @@
     <p id="events-heard">formSuccess events heard on this page: <span id="events-count">0</span></p>
 
     <script>
-        // The fix for "Cancel that does not cancel": fixi awaits cfg.confirm.
-        // Deliberately NOT here: a global X-CSRFToken header. Pitfall 7 is about
-        // what happens without one.
-        document.addEventListener("fx:config", (e) => {
-            const question = e.target.dataset?.confirm;
-            if (question) e.detail.cfg.confirm = () => confirm(question);
-        });
         document.addEventListener("formSuccess", () => {
             const count = document.getElementById("events-count");
             count.textContent = Number(count.textContent) + 1;

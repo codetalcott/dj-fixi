@@ -1,0 +1,28 @@
+{% load fixi_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if full %}With fixi_scripts{% else %}fixi.js alone{% endif %}</title>
+    <link rel="icon" href="data:,">
+    <style>body { font: 14px system-ui, sans-serif; margin: .5rem; } #out { max-height: 3rem; overflow: auto; }</style>
+    {% if full %}{% fixi_scripts %}{% else %}{% fixi_js %}{% endif %}
+</head>
+<body>
+    <p><small>This frame loads <code>{% templatetag openblock %} {% if full %}fixi_scripts{% else %}fixi_js{% endif %} {% templatetag closeblock %}</code></small></p>
+    {% if kind == "events" %}
+    <button fx-action="{% url 'pitfalls:ping' %}" fx-target="#out" fx-swap="innerHTML">Ping the server</button>
+    <p id="out">Not pinged yet.</p>
+    <p>"pinged" events heard: <strong id="heard">0</strong></p>
+    <script>
+        document.addEventListener("pinged", () => {
+            const heard = document.getElementById("heard");
+            heard.textContent = Number(heard.textContent) + 1;
+        });
+    </script>
+    {% else %}
+    <button fx-action="{% url 'pitfalls:save' %}" fx-method="POST" fx-target="#out" fx-swap="innerHTML">Save</button>
+    <div id="out">Not saved yet.</div>
+    {% endif %}
+</body>
+</html>
