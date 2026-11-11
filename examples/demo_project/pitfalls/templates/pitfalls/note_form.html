@@ -1,7 +1,13 @@
 {% load fixi_tags %}
-{# No fx-target: the form replaces itself (fixi's default outerHTML swap). #}
+{% comment %} The form and the list it adds to are one fragment. With no fx-target the
+   form replaces itself (fixi's default outerHTML swap), so the response carries
+   the blank form and the list with the new note in it. {% endcomment %}
 <form class="note-form" {% fx_attrs action=action method="POST" %}>
     {% fx_csrf_token %}
     {{ form.as_p }}
     <button type="submit">Add note</button>
+    <p class="notes-heading">Recent notes</p>
+    <ul class="notes">
+        {% for note in notes %}<li>{{ note.text }}</li>{% empty %}<li class="empty">None yet.</li>{% endfor %}
+    </ul>
 </form>

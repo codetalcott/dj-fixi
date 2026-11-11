@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.1 — 2026-11-11
+
+### Fixed
+
+- **A Fixi request could answer 500 under `runserver`, depending on which
+  template loaded first.** Under `DEBUG`, `FxMiddleware` and `render_fx` put the
+  template's name in an `X-FX-Template` header. When an `{% include %}` had
+  loaded that template first, the cached loader's copy carried the name as a
+  `SafeString`, and wsgiref refuses any header value that is not exactly `str`.
+  Production servers and the test client were unaffected, which is why no test
+  saw it. The header value is a plain string now.
+
+### Demo
+
+- The "form that redirects" pitfall shows a list of recent notes under each
+  form, so adding a note visibly does something: with `FxResponseMixin` the
+  form clears and the note appears (`fx_collection` supplies the list); without
+  it, the page the redirect leads to lands where the form was.
+
 ## 0.6.0 — extension attributes
 
 The demo's delete confirmation, active search and CSRF header each took a

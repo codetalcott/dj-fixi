@@ -19,7 +19,7 @@ import logging
 from django.conf import settings
 
 from .lint import lint_response
-from .request import FX_REQUEST_HEADER, redirect_note, vary_on_fx
+from .request import FX_REQUEST_HEADER, header_text, redirect_note, vary_on_fx
 
 logger = logging.getLogger("dj_fixi.middleware")
 
@@ -65,7 +65,7 @@ class FxMiddleware:
 
         name = template_name_of(response)
         if name:
-            response["X-FX-Template"] = name
+            response["X-FX-Template"] = header_text(name)
 
         for finding in lint_response(response):
             log = logger.error if finding.level == "error" else logger.warning
