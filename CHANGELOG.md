@@ -13,6 +13,10 @@ No change to the package.
   Fixi and Django, each live next to what dj-fixi has you write instead. Every
   claim on it is a test: `examples/demo_project/tests/` checks what the lint and
   `FxTestClient` say about each pair, and drives each pair in a browser.
+- **Two template comments were showing on the page.** Django's `{# #}` is
+  single-line; the two that spanned lines rendered as text in the product list
+  and above the product form. They are `{% comment %}` blocks now, and a demo
+  test fails on any `{# #}` that crosses a line.
 - CI runs the demo's tests on every Django version, and a browser job runs the
   shim's tests and the pitfalls in Chromium. Before this the browser tests only
   ran when someone ran them by hand.

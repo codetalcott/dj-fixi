@@ -38,3 +38,16 @@ def test_every_products_page_is_lint_clean():
         assert fx.get(url).status_code == 200, url
         fragment = fx.fx_get(url)
         assert fragment.status_code == 200 and b"<html" not in fragment.content, url
+        for response in (fx.get(url), fragment):
+            assert b"{#" not in response.content and b"#}" not in response.content, url
+
+
+def test_no_template_comment_spans_lines():
+    """Django's {# #} is single-line; across lines it is not a comment and renders as text."""
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    for path in root.glob("*/templates/**/*.html"):
+        for match in re.finditer(r"\{#(.*?)#\}", path.read_text(), flags=re.S):
+            assert "\n" not in match.group(1), f"{path.relative_to(root)}: use {{% comment %}}"
