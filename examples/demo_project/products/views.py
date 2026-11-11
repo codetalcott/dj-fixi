@@ -3,21 +3,20 @@
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
-from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin, OptimizedQueryMixin
+from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin
 from dj_fixi.shortcuts import render_fx
 from dj_fixi.views import FxView
 
 from .models import Product
 
 
-class ProductListView(ContextPersistenceMixin, OptimizedQueryMixin, FxView, ListView):
+class ProductListView(ContextPersistenceMixin, FxView, ListView):
     """
     List products with automatic fragment serving for Fixi requests.
 
     Demonstrates:
     - FxView for automatic template selection
     - ContextPersistenceMixin for filter/sort state
-    - OptimizedQueryMixin for query optimization
     """
 
     model = Product

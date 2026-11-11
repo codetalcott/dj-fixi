@@ -1,7 +1,7 @@
 # dj-fixi
 
 Django integration for Fixi.js. Server renders HTML; Fixi swaps it into the DOM.
-Version 0.4.0. Requires Django >= 4.2, Python >= 3.10. MIT.
+Version 0.5.0. Requires Django >= 4.2, Python >= 3.10. MIT.
 
 Read this before writing dj-fixi code. It is complete; you should not need to
 read the source.
@@ -87,7 +87,7 @@ and `Vary: FX-Request` on responses dj-fixi does not build.
 
     is_fx(request) -> bool          # the one detection function
     FxView, FxTemplateView
-    FxResponseMixin, ContextPersistenceMixin, OptimizedQueryMixin
+    FxResponseMixin, ContextPersistenceMixin
     FxMiddleware
     render_fx(request, fragment_template, page_template=None, context=None, **kw)
 
@@ -134,8 +134,6 @@ with `fx_success_event`, `fx_error_event`,
 names, exact match, no dependency). `?sort=name` and `?sort=-category__name` both
 work. Adds `query_string`, `preserved_params`, `current_sort` to the context.
 
-`OptimizedQueryMixin` — set `select_related_fields` / `prefetch_related_fields`.
-
 ### dj_fixi.shortcuts.render_fx
 
 For function-based views. Picks the fragment for Fixi requests, the page
@@ -164,7 +162,6 @@ must supply the token yourself, or the POST is rejected.
     {% fx_csrf_token %}     # works with no context-processor configuration
     {% fixi_js %}           # the vendored fixi.js (needs staticfiles)
     {% fixi_events %}       # the FX-Trigger -> CustomEvent shim; load AFTER fixi_js
-    {% fixi_cdn %}          # deprecated; prefer fixi_js
 
 `fx_attrs` omits Fixi's own defaults (GET, `click`, `outerHTML`). Valid swap
 values: innerHTML, outerHTML, textContent, innerText, beforebegin, afterbegin,

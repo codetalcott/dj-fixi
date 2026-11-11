@@ -8,12 +8,12 @@ stops ``runserver``, so a false positive does not annoy someone, it blocks them.
 
 import inspect
 
-from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin, OptimizedQueryMixin
+from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin
 from dj_fixi.urlconf import routed_view_classes
 from dj_fixi.views import FxView
 
 #: dj-fixi classes whose hooks can be silently shadowed by a bad base order.
-PROVIDERS = (FxView, FxResponseMixin, ContextPersistenceMixin, OptimizedQueryMixin)
+PROVIDERS = (FxView, FxResponseMixin, ContextPersistenceMixin)
 
 #: Hooks dj-fixi relies on reaching. Each is cooperative: dj-fixi's version calls
 #: super(), and expects everything ahead of it in the MRO to do the same.

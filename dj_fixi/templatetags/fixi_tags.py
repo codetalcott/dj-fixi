@@ -170,22 +170,3 @@ def fixi_events():
     spelling fixi cannot perform, and a request that failed.
     """
     return format_html('<script src="{}"></script>', static("dj_fixi/fixi-events.js"))
-
-
-@register.simple_tag
-def fixi_cdn(version="0.1.1"):
-    """
-    Include the Fixi Project bundle from a CDN.
-
-    .. deprecated::
-        Prefer ``{% fixi_js %}`` (vendored, offline, version-pinned). This tag is
-        kept for convenience and points at the real ``the-fixi-project`` package
-        (fixi + moxi + ssexi + paxi + rexi). The old ``unpkg.com/fixi@1.0.0`` URL
-        was wrong — that npm name is an unrelated, abandoned package.
-
-    Usage:
-        {% fixi_cdn %}
-        {% fixi_cdn version="0.1.1" %}
-    """
-    url = f"https://unpkg.com/the-fixi-project@{version}/dist/the-fixi-project.js"
-    return format_html('<script src="{}"></script>', url)

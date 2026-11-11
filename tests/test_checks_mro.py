@@ -14,7 +14,7 @@ from django.test import override_settings
 from django.views.generic import CreateView, DeleteView, ListView
 
 from dj_fixi.checks._utils import calls_super, shadowed_hooks
-from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin, OptimizedQueryMixin
+from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin
 from dj_fixi.views import FxView
 
 from .checks_support import TEMPLATES, check_ids
@@ -30,7 +30,7 @@ def hooks(*bases):
     [
         ((FxView, ListView), []),
         ((FxResponseMixin, CreateView), []),
-        ((ContextPersistenceMixin, OptimizedQueryMixin, FxView, ListView), []),
+        ((ContextPersistenceMixin, FxView, ListView), []),
         ((ListView, FxView), ["get_context_data", "get_template_names"]),
         (
             (CreateView, FxResponseMixin),
@@ -54,7 +54,6 @@ def hooks(*bases):
             ],
         ),
         ((ListView, ContextPersistenceMixin), ["get_context_data", "get_queryset"]),
-        ((FxView, ListView, OptimizedQueryMixin), ["get_queryset"]),
     ],
     ids=[
         "good-fxview-first",
@@ -64,7 +63,6 @@ def hooks(*bases):
         "bad-createview-first",
         "bad-deleteview-first",
         "bad-contextpersistence-last",
-        "bad-optimizedquery-last",
     ],
 )
 def test_shadowed_hooks_table(bases, expected):

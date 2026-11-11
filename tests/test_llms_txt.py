@@ -70,7 +70,6 @@ def test_documented_swap_values_match_the_code(text):
         "FxTemplateView",
         "FxResponseMixin",
         "ContextPersistenceMixin",
-        "OptimizedQueryMixin",
         "FxMiddleware",
         "render_fx",
     ],

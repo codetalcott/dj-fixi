@@ -4,7 +4,7 @@ from django.contrib.auth.models import Group
 from django.http import HttpResponse
 from django.views.generic import CreateView, DeleteView, ListView
 
-from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin, OptimizedQueryMixin
+from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin
 from dj_fixi.shortcuts import render_fx
 from dj_fixi.views import FxTemplateView, FxView
 
@@ -29,7 +29,7 @@ class GoodCreate(FxResponseMixin, CreateView):
     success_url = "/"
 
 
-class GoodMixinStack(ContextPersistenceMixin, OptimizedQueryMixin, FxView, ListView):
+class GoodMixinStack(ContextPersistenceMixin, FxView, ListView):
     model = Group
     template_name = TEMPLATE
     partial_template = PARTIAL

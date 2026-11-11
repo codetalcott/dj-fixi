@@ -13,7 +13,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory
 from django.views.generic import DetailView, ListView
 
-from dj_fixi.mixins import ContextPersistenceMixin, OptimizedQueryMixin
+from dj_fixi.mixins import ContextPersistenceMixin
 from dj_fixi.views import FxView
 
 
@@ -61,7 +61,7 @@ def test_fxview_listview_preserves_listview_context(rf):
 def test_full_demo_mro_context_coexists(rf):
     """The documented demo stack keeps Django, persistence, and Fx context."""
 
-    class V(ContextPersistenceMixin, OptimizedQueryMixin, FxView, ListView):
+    class V(ContextPersistenceMixin, FxView, ListView):
         model = Group
         ordering = ["id"]
         context_object_name = "groups"

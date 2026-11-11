@@ -432,33 +432,3 @@ class FxResponseMixin:
         else:
             # Simple event trigger
             response["FX-Trigger"] = event_name
-
-
-class OptimizedQueryMixin:
-    """
-    Optimizes database queries with select_related and prefetch_related.
-
-    No library-specific code - works with any Django view.
-
-    Input Contract:
-        - select_related_fields: List of foreign key fields
-        - prefetch_related_fields: List of many-to-many or reverse FK fields
-
-    Output Contract:
-        - Returns optimized queryset with reduced database queries
-    """
-
-    select_related_fields: list[str] = []
-    prefetch_related_fields: list[str] = []
-
-    def get_queryset(self) -> models.QuerySet:
-        """Apply query optimizations."""
-        queryset = super().get_queryset()
-
-        if self.select_related_fields:
-            queryset = queryset.select_related(*self.select_related_fields)
-
-        if self.prefetch_related_fields:
-            queryset = queryset.prefetch_related(*self.prefetch_related_fields)
-
-        return queryset

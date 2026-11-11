@@ -31,12 +31,12 @@ This project was created by adapting code from:
 4. **Mixins** ([dj_fixi/mixins.py](dj_fixi/mixins.py))
    - `FxResponseMixin`: Fragment template handling, form validation
    - `ContextPersistenceMixin`: URL state preservation
-   - `OptimizedQueryMixin`: Query optimization
 
 5. **Template Tags** ([dj_fixi/templatetags/fixi_tags.py](dj_fixi/templatetags/fixi_tags.py))
    - `{% fx_attrs %}`: Generate Fixi attributes
    - `{% fx_csrf_token %}`: CSRF tokens
-   - `{% fixi_cdn %}`: Include Fixi.js
+   - `{% fixi_js %}`: Include the vendored Fixi.js
+   - `{% fixi_events %}`: The `FX-Trigger` event shim (load after `fixi_js`)
 
 6. **Shortcuts** ([dj_fixi/shortcuts.py](dj_fixi/shortcuts.py))
    - `render_fx()`: Automatic template selection for FBVs
@@ -61,7 +61,7 @@ This project was created by adapting code from:
 ### Fixi.js
 - Request header: `FX-Request: true`
 - Attributes: `fx-action`, `fx-method`, `fx-target`, `fx-swap`, `fx-trigger`
-- Events: `fx:init`, `fx:before`, `fx:after`, `fx:swapped`
+- Events: `fx:init`, `fx:inited`, `fx:config`, `fx:before`, `fx:after`, `fx:swapped`, `fx:error`, `fx:finally`
 - Simpler, smaller (minimal feature set)
 
 ### HTMX

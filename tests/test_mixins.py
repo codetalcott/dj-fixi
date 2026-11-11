@@ -3,7 +3,7 @@ Tests for dj_fixi.mixins.
 
 Covers FxResponseMixin (form_valid for create/update/delete, form_invalid,
 fragment template selection), ContextPersistenceMixin (sort validation, query
-string), and OptimizedQueryMixin. These modules previously had no coverage.
+string). These modules previously had no coverage.
 """
 
 import json
@@ -15,7 +15,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory, override_settings
 from django.views.generic import CreateView, DeleteView, ListView, TemplateView
 
-from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin, OptimizedQueryMixin
+from dj_fixi.mixins import ContextPersistenceMixin, FxResponseMixin
 
 # locmem templates so fragment rendering works without app template dirs.
 LOCMEM_TEMPLATES = [
@@ -236,24 +236,6 @@ def test_context_persistence_query_string(rf):
     assert "q=test" in ctx["query_string"]
     assert ctx["preserved_params"]["q"] == "test"
     assert ctx["current_sort"] == ""
-
-
-# --------------------------------------------------------------------------- #
-# OptimizedQueryMixin
-# --------------------------------------------------------------------------- #
-
-
-@pytest.mark.django_db
-def test_optimized_query_applies_prefetch(rf):
-    class V(OptimizedQueryMixin, ListView):
-        model = Group
-        prefetch_related_fields = ["permissions"]
-
-    view = V()
-    view.setup(rf.get("/"))
-    qs = view.get_queryset()
-
-    assert qs._prefetch_related_lookups == ("permissions",)
 
 
 # --------------------------------------------------------------------------- #

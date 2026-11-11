@@ -1,9 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-11-11
 
 ### Removed
 
+- **`OptimizedQueryMixin`.** It wrapped `select_related`/`prefetch_related`
+  and had nothing to do with Fixi. Call them in `get_queryset`.
+- **`{% fixi_cdn %}`**, deprecated since 0.2.0. Use `{% fixi_js %}`, which
+  serves the vendored, version-pinned `fixi.js`.
+- **`X-Execution-Time` and `X-FX-Response` response headers** from
+  `FxMiddleware`. Neither was read by anything; `X-FX-Template` (DEBUG) stays.
 - **Derived partial names.** `template_name` no longer implies
   `<name>_partial.<ext>` or `<dir>/fragments/<leaf>`, and `fx_template_suffix`
   is gone. A view has a fragment when it names one in `partial_template`
