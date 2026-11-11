@@ -1,0 +1,22 @@
+{% load fixi_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if shim %}With{% else %}Without{% endif %} the events shim</title>
+    <style>body { font: 14px system-ui, sans-serif; margin: .5rem; }</style>
+    {% fixi_js %}
+    {% if shim %}{% fixi_events %}{% endif %}
+</head>
+<body>
+    <button fx-action="{% url 'pitfalls:ping' %}" fx-target="#out" fx-swap="innerHTML">Ping the server</button>
+    <p id="out">Not pinged yet.</p>
+    <p>"pinged" events heard: <strong id="heard">0</strong></p>
+    <script>
+        document.addEventListener("pinged", () => {
+            const heard = document.getElementById("heard");
+            heard.textContent = Number(heard.textContent) + 1;
+        });
+    </script>
+</body>
+</html>

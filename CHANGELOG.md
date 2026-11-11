@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+No change to the package.
+
+### Demo
+
+- **The demo starts.** It had no migrations, so following its README ended in
+  `no such table: products_product`. Migrations are committed, and
+  `manage.py seed` creates 25 products.
+- **A pitfalls page** (`/pitfalls/`): seven mistakes that are easy to make with
+  Fixi and Django, each live next to what dj-fixi has you write instead. Every
+  claim on it is a test: `examples/demo_project/tests/` checks what the lint and
+  `FxTestClient` say about each pair, and drives each pair in a browser.
+- CI runs the demo's tests on every Django version, and a browser job runs the
+  shim's tests and the pitfalls in Chromium. Before this the browser tests only
+  ran when someone ran them by hand.
+
 ## 0.5.2 — 2026-11-11
 
 ### Fixed

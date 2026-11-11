@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Details - dj-fixi Demo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+</head>
+<body>
+    <nav><a href="{% url 'pitfalls:index' %}">Back to pitfalls</a></nav>
+    <h1>Details: the full page</h1>
+    {% include "pitfalls/details_partial.html" %}
+    <footer>This header, navigation and footer belong to the page, not the fragment.</footer>
+</body>
+</html>

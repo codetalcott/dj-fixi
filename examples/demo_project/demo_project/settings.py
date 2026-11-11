@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "dj_fixi",  # Our package
     "products",  # Demo app
+    "pitfalls",  # Mistakes, side by side with what dj-fixi does instead
 ]
 
 MIDDLEWARE = [

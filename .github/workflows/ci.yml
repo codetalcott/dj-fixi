@@ -47,3 +47,26 @@ jobs:
           uv run --no-project --python ${{ matrix.python }}
           --with "django~=${{ matrix.django }}.0" --with-editable ../..
           python manage.py fixi_lint
+      - name: demo tests
+        working-directory: examples/demo_project
+        run: >
+          uv run --no-project --python ${{ matrix.python }}
+          --with "django~=${{ matrix.django }}.0" --with pytest --with pytest-django
+          --with-editable ../.. python -m pytest -q
+
+  browser:
+    runs-on: ubuntu-latest
+    env:
+      RUN: >-
+        uv run --no-project --python 3.13 --with django~=6.0.0 --with pytest
+        --with pytest-django --with playwright
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: install Chromium
+        run: $RUN python -m playwright install --with-deps chromium
+      - name: the events shim in a browser
+        run: $RUN --with-editable . python -m pytest -q -m browser
+      - name: the demo's pitfalls in a browser
+        working-directory: examples/demo_project
+        run: $RUN --with-editable ../.. python -m pytest -q -m browser
