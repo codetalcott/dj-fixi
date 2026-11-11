@@ -19,7 +19,7 @@ Changelog = "https://github.com/codetalcott/dj-fixi/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 browser = ["playwright"]
 dev = [
-    "ruff>=0.1.0",
+    "ruff>=0.17",
     "pytest>=7.0",
     "pytest-django>=4.5",
 ]
