@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUN: >-
-        uv run --no-project --python 3.13 --with "django~=6.0.0" --with pytest
+        uv run --no-project --python 3.13 --with django~=6.0.0 --with pytest
         --with pytest-django --with playwright
     steps:
       - uses: actions/checkout@v4
