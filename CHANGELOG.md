@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.2 — 2026-11-11
+
+### Fixed
+
+- **`fixi-events.js` reported a correct `fx-target` as matching nothing** when
+  an element named itself (`<td id="c" fx-target="#c">`). The guard compared
+  the resolved target with the element, which is also what a selector that
+  matches nothing resolves to. It now checks whether the element matches its
+  own selector. Found by driving dj-fixi-tables in Chrome.
+
 ## 0.5.1 — 2026-11-11
 
 ### Fixed

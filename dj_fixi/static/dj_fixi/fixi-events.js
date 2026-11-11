@@ -67,8 +67,14 @@
     const elt = evt.target;
     const cfg = evt.detail?.cfg;
     if (!cfg || !(elt instanceof Element)) return;
-    if (elt.hasAttribute("fx-target") && cfg.target === elt) {
-      console.error(`dj-fixi: fx-target="${elt.getAttribute("fx-target")}" matches nothing on this page; fixi will swap the response into the element itself.`, elt);
+    // fixi falls back to the element when the selector matches nothing. An
+    // element that names itself (fx-target="#its-own-id") also has
+    // cfg.target === elt, and that one is correct.
+    const selector = elt.getAttribute("fx-target");
+    let namesItself = false;
+    try { namesItself = selector != null && elt.matches(selector); } catch { /* fixi already threw on it */ }
+    if (selector != null && cfg.target === elt && !namesItself) {
+      console.error(`dj-fixi: fx-target="${selector}" matches nothing on this page; fixi will swap the response into the element itself.`, elt);
     }
     const swap = cfg.swap;
     const canSwap =

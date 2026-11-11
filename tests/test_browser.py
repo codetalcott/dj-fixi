@@ -4,6 +4,9 @@ the console guards. Opt-in:
 
     pip install playwright && playwright install chromium
     pytest -m browser
+
+Set PLAYWRIGHT_CHANNEL=chrome to drive an installed Chrome instead of the
+Chromium that ``playwright install`` downloads.
 """
 
 import os
@@ -25,6 +28,7 @@ PAGE = """{% load fixi_tags %}<!doctype html><html><head>{% fixi_js %}{% fixi_ev
 <button id="b3" fx-action="/b/frag/">replaces itself</button>
 <button id="b4" fx-action="/b/frag/" fx-target="#missing">bad target</button>
 <button id="b5" fx-action="/b/frag/" fx-target="#out" fx-swap="outerhtml">bad swap</button>
+<button id="b6" fx-action="/b/frag/" fx-target="#b6">names itself</button>
 <script>
 window.__seen = []; window.__errors = [];
 document.addEventListener("ping", (e) => __seen.push({
@@ -49,7 +53,7 @@ TEMPLATES = [
 @pytest.fixture(scope="module")
 def browser():
     with sync_api.sync_playwright() as p:
-        b = p.chromium.launch()
+        b = p.chromium.launch(channel=os.environ.get("PLAYWRIGHT_CHANNEL") or None)
         yield b
         b.close()
 
@@ -106,3 +110,17 @@ def test_the_console_guards_report_what_fixi_swallows(live_server, settings, pag
     # the bad swap throws inside fixi, so no fx:swapped and no event for it
     assert page.evaluate("window.__seen.length") == 1
     assert page.evaluate("document.getElementById('out').textContent") == "OLD"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_an_element_that_targets_itself_is_not_reported(live_server, settings, page):
+    """fx-target="#own-id" resolves to the element, exactly like a missing target does."""
+    settings.ROOT_URLCONF = "tests.urlconfs.browser"
+    settings.TEMPLATES = TEMPLATES
+    page.goto(live_server.url + "/b/page/")
+
+    page.click("#b6")
+    page.wait_for_function("window.__seen.length >= 1")
+
+    assert page.evaluate("window.__errors") == []
+    assert page.evaluate("document.getElementById('b6')") is None  # it did swap itself
