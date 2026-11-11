@@ -1,7 +1,7 @@
 {% load fixi_tags %}
-{# Fragment served to Fixi requests (create/update). The form has no fx-target, so
+{% comment %} Fragment served to Fixi requests (create/update). The form has no fx-target, so
    Fixi targets the form element itself and replaces it (outerHTML default) with the
-   response — re-rendered with errors on 422, or with the saved instance on success. #}
+   response — re-rendered with errors on 422, or with the saved instance on success. {% endcomment %}
 <form {% fx_attrs action=request.path method="POST" %}>
     {% fx_csrf_token %}
     {{ form.as_p }}

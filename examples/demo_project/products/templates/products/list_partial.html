@@ -22,12 +22,12 @@
                 <button {% fx_attrs action=product.get_absolute_url method="GET" target="#product-container" swap="innerHTML" %}>
                     Edit
                 </button>
-                {# Delete: an HTTP DELETE (FxResponseMixin.delete answers Fixi with
+                {% comment %} Delete: an HTTP DELETE (FxResponseMixin.delete answers Fixi with
                    204 since 0.4.0); the empty body removes the row via the outerHTML
                    swap. CSRF travels in the X-CSRFToken header, and data-confirm
                    becomes cfg.confirm, both in the fx:config handler in base.html.
                    An inline onclick="return confirm(...)" would not work: fixi
-                   sends the request even when the user cancels (dj_fixi.L112). #}
+                   sends the request even when the user cancels (dj_fixi.L112). {% endcomment %}
                 <button
                     fx-action="{% url 'product_delete' product.id %}"
                     fx-method="DELETE"
