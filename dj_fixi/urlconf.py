@@ -129,7 +129,7 @@ def iter_routed_views(
     try:
         from django.urls import get_resolver
 
-        resolver = get_resolver(urlconf)
+        resolver = get_resolver(urlconf)  # type: ignore[arg-type]  # a module object is accepted too
     except Exception:
         return
 
