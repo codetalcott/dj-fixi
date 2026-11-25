@@ -83,6 +83,16 @@ class TestDecoratorsAndInitkwargs:
         assert routed.attr("nonexistent", "fallback") == "fallback"
 
 
+class TestSharedIncludes:
+    def test_patterns_included_under_two_namespaces_are_routed_under_both(self):
+        # NAV includes its API patterns under api:, api:1: and api:2:, and the walk skipped all but the first.
+        routes = sorted(r.full_name for r in iter_routed_views("tests.urlconfs.shared"))
+        assert routes == ["v1:thing", "v2:thing"]
+
+    def test_a_urlconf_that_includes_itself_still_ends(self):
+        assert names("tests.urlconfs.recursive") == ["top", "top"]
+
+
 class TestNeverRaises:
     def test_broken_include_yields_nothing_instead_of_raising(self):
         assert list(iter_routed_views("tests.urlconfs.broken")) == []
