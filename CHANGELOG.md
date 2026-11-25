@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `dj_fixi.urlconf` walks a list of patterns once for each namespace it is included under. It used to skip
+  every way after the first, because it remembered every resolver it had visited, not only the ones on the
+  current path. NAV routes its API under `api:`, `api:1:` and `api:2:`, and only the first was found, so dj-hx's
+  `hx_map` could not resolve `{% url 'api:1:…' %}`. A URLconf that includes itself still ends.
 - [dj-fixi-tables](https://github.com/codetalcott/dj-fixi-tables) is published,
   and the README and `llms.txt` link to it. CI gained a `downstream` job that
   runs that package's suite against each change here.
